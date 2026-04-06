@@ -1,9 +1,11 @@
 import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
 
 export interface EmbeddingProvider {
-  embed(text: string): Promise<Float32Array>;
-  embedBatch(texts: string[]): Promise<Float32Array[]>;
-  similarity(a: Float32Array, b: Float32Array): number;
+  initialize(): Promise<void>;
+  embed(text: string): Promise<number[]>;
+  embedBatch(texts: string[]): Promise<number[][]>;
+  similarity(a: number[], b: number[]): number;
+  findTopK(query: number[], candidates: Array<{ id: string; embedding: number[]; metadata?: any }>, k: number): Array<{ id: string; score: number; metadata?: any }>;
 }
 
 export class LocalEmbeddingModel implements EmbeddingProvider {
@@ -44,7 +46,7 @@ export class LocalEmbeddingModel implements EmbeddingProvider {
     }
   }
 
-  async embed(text: string): Promise<Float32Array> {
+  async embed(text: string): Promise<number[]> {
     await this.initialize();
     if (!this.pipeline) {
       throw new Error('Embedding model not initialized');
@@ -58,10 +60,10 @@ export class LocalEmbeddingModel implements EmbeddingProvider {
       normalize: true,
     });
 
-    return result.data as Float32Array;
+    return Array.from(result.data as Float32Array);
   }
 
-  async embedBatch(texts: string[]): Promise<Float32Array[]> {
+  async embedBatch(texts: string[]): Promise<number[][]> {
     await this.initialize();
     if (!this.pipeline) {
       throw new Error('Embedding model not initialized');
@@ -76,13 +78,13 @@ export class LocalEmbeddingModel implements EmbeddingProvider {
 
     // Results might be batched, handle both single and array returns
     if (Array.isArray(results)) {
-      return results.map(r => r.data as Float32Array);
+      return results.map(r => Array.from(r.data as Float32Array));
     }
 
-    return [results.data as Float32Array];
+    return [Array.from(results.data as Float32Array)];
   }
 
-  similarity(a: Float32Array, b: Float32Array): number {
+  similarity(a: number[], b: number[]): number {
     if (a.length !== b.length) {
       throw new Error(`Embedding dimension mismatch: ${a.length} vs ${b.length}`);
     }
@@ -102,8 +104,8 @@ export class LocalEmbeddingModel implements EmbeddingProvider {
 
   // Find top-k most similar embeddings
   findTopK(
-    query: Float32Array,
-    candidates: Array<{ id: string; embedding: Float32Array; metadata?: any }>,
+    query: number[],
+    candidates: Array<{ id: string; embedding: number[]; metadata?: any }>,
     k: number
   ): Array<{ id: string; score: number; metadata?: any }> {
     const scored = candidates.map(c => ({
@@ -127,10 +129,12 @@ export class LocalEmbeddingModel implements EmbeddingProvider {
 }
 
 // Buffer conversion utilities for SQLite storage
-export function embeddingToBuffer(embedding: Float32Array): Buffer {
-  return Buffer.from(embedding.buffer);
+export function embeddingToBuffer(embedding: number[]): Buffer {
+  const floatArray = new Float32Array(embedding);
+  return Buffer.from(floatArray.buffer);
 }
 
-export function bufferToEmbedding(buffer: Buffer): Float32Array {
-  return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / 4);
+export function bufferToEmbedding(buffer: Buffer): number[] {
+  const floatArray = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / 4);
+  return Array.from(floatArray);
 }

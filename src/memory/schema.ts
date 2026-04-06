@@ -195,7 +195,7 @@ export interface Episode {
   outcome: string;
   outcomeType: 'success' | 'error' | 'partial';
   createdAt: number;
-  embedding?: Buffer;
+  embedding?: number[];
 }
 
 export interface Fact {
@@ -207,7 +207,7 @@ export interface Fact {
   createdAt: number;
   lastAccessed: number;
   accessCount: number;
-  embedding?: Buffer;
+  embedding?: number[];
 }
 
 export interface FileIndex {
@@ -220,7 +220,7 @@ export interface FileIndex {
   outline?: string;
   summary?: string;
   indexedAt: number;
-  embedding?: Buffer;
+  embedding?: number[];
 }
 
 export interface CodeChunk {
@@ -231,7 +231,7 @@ export interface CodeChunk {
   content: string;
   chunkType?: string;
   name?: string;
-  embedding?: Buffer;
+  embedding?: number[];
 }
 
 export interface MemoryLog {
@@ -278,7 +278,7 @@ export interface DocIndex {
   content: string;
   summary?: string;
   indexedAt: number;
-  embedding?: Buffer;
+  embedding?: number[];
 }
 
 export interface Pattern {
@@ -289,5 +289,5 @@ export interface Pattern {
   usageCount: number;
   examples?: string[];
   createdAt: number;
-  embedding?: Buffer;
+  embedding?: number[];
 }

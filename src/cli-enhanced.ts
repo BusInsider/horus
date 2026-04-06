@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { loadConfig, getConfigPath, saveConfig, Config } from './config.js';
+import Database from 'better-sqlite3';
+import { loadConfig, getConfigPath, saveConfig } from './config.js';
 import { KimiClient } from './kimi.js';
 import { MemoryManager } from './memory/manager.js';
 import { EnhancedAgent } from './agent-enhanced.js';
@@ -18,12 +19,11 @@ import {
 } from './tools/index.js';
 import { resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
 import { expandHomeDir } from './utils/paths.js';
 import { SubagentConfig } from './subagent.js';
 import { PlanManager } from './plan.js';
 import { handleAgentCommand, printAgentHelp } from './agents/index.js';
-import { Logger, initLogger } from './utils/logger.js';
+import { initLogger } from './utils/logger.js';
 import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
 import { runDoctor } from './doctor.js';
 import chalk from 'chalk';
@@ -645,7 +645,6 @@ program
     templates.close();
   });
 
-import chalk from 'chalk';
 import readline from 'readline';
 
 function askYesNo(question: string, defaultValue: boolean = false): Promise<boolean> {

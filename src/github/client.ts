@@ -277,11 +277,22 @@ export class GitHubClient {
       side?: 'LEFT' | 'RIGHT';
     }
   ): Promise<ReviewComment> {
+    // Get the PR to find the head commit SHA if commit_id not provided
+    let commitId = comment.commit_id;
+    if (!commitId) {
+      const pr = await this.getPullRequest(owner, repo, pullNumber);
+      commitId = pr.head.sha;
+    }
+    
     const { data } = await this.octokit.pulls.createReviewComment({
       owner,
       repo,
       pull_number: pullNumber,
-      ...comment,
+      path: comment.path,
+      line: comment.line,
+      body: comment.body,
+      commit_id: commitId,
+      side: comment.side,
     });
     return data as ReviewComment;
   }
@@ -348,6 +359,21 @@ export class GitHubClient {
       body: options.body,
       labels: options.labels,
       assignees: options.assignees,
+    });
+    return data as Issue;
+  }
+
+  async updateIssue(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    updates: Partial<{ title: string; body: string; state: 'open' | 'closed'; labels: string[] }>
+  ): Promise<Issue> {
+    const { data } = await this.octokit.issues.update({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      ...updates,
     });
     return data as Issue;
   }

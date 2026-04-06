@@ -154,6 +154,10 @@ export class TerminalUI {
     console.log(chalk.yellow(`Warning: ${message}`));
   }
 
+  warn(message: string): void {
+    this.warning(message);
+  }
+
   // ═══════════════════════════════════════════════════════════
   // INPUT
   // ═══════════════════════════════════════════════════════════

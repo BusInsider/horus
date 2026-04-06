@@ -345,7 +345,7 @@ export class EnhancedAgent {
               await this.memory.addMessage({
                 role: 'assistant',
                 content: chunks.join(''),
-                tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+                toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
               });
             }
             break;
@@ -423,7 +423,7 @@ export class EnhancedAgent {
       this.ui.error(`Unknown tool: ${toolCall.function.name}`);
       await this.memory.addMessage({
         role: 'tool',
-        tool_call_id: toolCall.id,
+        toolCallId: toolCall.id,
         content: `Error: Unknown tool "${toolCall.function.name}"`,
       });
       return false;
@@ -468,7 +468,7 @@ export class EnhancedAgent {
 
       await this.memory.addMessage({
         role: 'tool',
-        tool_call_id: toolCall.id,
+        toolCallId: toolCall.id,
         content: result.substring(0, 8000),
       });
 
@@ -499,7 +499,7 @@ export class EnhancedAgent {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.memory.addMessage({
         role: 'tool',
-        tool_call_id: toolCall.id,
+        toolCallId: toolCall.id,
         content: `Error: ${errorMessage}`,
       });
 

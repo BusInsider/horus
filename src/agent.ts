@@ -118,7 +118,7 @@ export class Agent {
             await this.memory.addMessage({
               role: 'assistant',
               content: chunks.join(''),
-              tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+              toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
             });
           }
           break;
@@ -145,7 +145,7 @@ export class Agent {
         this.ui.error(`Unknown tool: ${toolCall.function.name}`);
         await this.memory.addMessage({
           role: 'tool',
-          tool_call_id: toolCall.id,
+          toolCallId: toolCall.id,
           content: `Error: Unknown tool "${toolCall.function.name}"`,
         });
         continue;
@@ -198,7 +198,7 @@ export class Agent {
       // Add tool result to working memory
       await this.memory.addMessage({
         role: 'tool',
-        tool_call_id: toolCall.id,
+        toolCallId: toolCall.id,
         content: result.substring(0, 8000), // Limit result size
       });
 

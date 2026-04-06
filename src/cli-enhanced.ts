@@ -678,4 +678,308 @@ function askQuestion(question: string): Promise<string> {
   });
 }
 
+// ============================================================================
+// GITHUB COMMANDS
+// ============================================================================
+
+const ghCmd = program
+  .command('gh')
+  .description('GitHub integration - PRs, issues, code review');
+
+// PR subcommands
+const prCmd = ghCmd
+  .command('pr')
+  .description('Pull request management');
+
+prCmd
+  .command('create')
+  .description('Create a new pull request')
+  .option('-t, --title <title>', 'PR title')
+  .option('-b, --body <body>', 'PR body')
+  .option('-d, --draft', 'Create as draft')
+  .option('--push', 'Push branch before creating PR')
+  .action(async (options) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { PRWorkflow } = await import('./github/pr.js');
+    
+    const client = new GitHubClient();
+    const workflow = new PRWorkflow(client);
+    
+    try {
+      const pr = await workflow.create({
+        title: options.title,
+        body: options.body,
+        draft: options.draft,
+        push: options.push,
+      });
+      console.log(`✅ Created PR #${pr.number}: ${pr.html_url}`);
+    } catch (error) {
+      console.error('Failed to create PR:', (error as Error).message);
+    }
+  });
+
+prCmd
+  .command('list')
+  .description('List open pull requests')
+  .option('-s, --state <state>', 'Filter by state', 'open')
+  .option('-a, --author <author>', 'Filter by author')
+  .option('-l, --limit <limit>', 'Limit results', '20')
+  .action(async (options) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { PRWorkflow } = await import('./github/pr.js');
+    
+    const client = new GitHubClient();
+    const workflow = new PRWorkflow(client);
+    
+    try {
+      const prs = await workflow.list({
+        state: options.state,
+        author: options.author,
+        limit: parseInt(options.limit, 10),
+      });
+      
+      if (prs.length === 0) {
+        console.log('No pull requests found');
+        return;
+      }
+      
+      console.log(`${prs.length} pull requests:\n`);
+      for (const pr of prs) {
+        const draft = pr.draft ? '[DRAFT] ' : '';
+        console.log(`#${pr.number} ${draft}${pr.title}`);
+        console.log(`    ${pr.user.login} → ${pr.base.ref} | ${pr.html_url}\n`);
+      }
+    } catch (error) {
+      console.error('Failed to list PRs:', (error as Error).message);
+    }
+  });
+
+prCmd
+  .command('checkout <number>')
+  .description('Checkout a pull request locally')
+  .action(async (number) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { PRWorkflow } = await import('./github/pr.js');
+    
+    const client = new GitHubClient();
+    const workflow = new PRWorkflow(client);
+    
+    try {
+      await workflow.checkout(parseInt(number, 10));
+    } catch (error) {
+      console.error('Failed to checkout PR:', (error as Error).message);
+    }
+  });
+
+prCmd
+  .command('view <number>')
+  .description('View pull request details')
+  .action(async (number) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { PRWorkflow } = await import('./github/pr.js');
+    
+    const client = new GitHubClient();
+    const workflow = new PRWorkflow(client);
+    
+    try {
+      const overview = await workflow.getOverview(parseInt(number, 10));
+      const pr = overview.pr;
+      
+      console.log(`\n#${pr.number}: ${pr.title}`);
+      console.log(`State: ${pr.state}${pr.draft ? ' (draft)' : ''}`);
+      console.log(`Author: ${pr.user.login}`);
+      console.log(`Branch: ${pr.head.ref} → ${pr.base.ref}`);
+      console.log(`URL: ${pr.html_url}`);
+      console.log(`\nFiles changed: ${overview.stats.totalFiles}`);
+      console.log(`+${overview.stats.totalAdditions} -${overview.stats.totalDeletions}`);
+      
+      if (overview.files.length > 0) {
+        console.log('\nChanged files:');
+        for (const f of overview.files.slice(0, 10)) {
+          console.log(`  ${f.status.padEnd(8)} +${f.additions} -${f.deletions} ${f.filename}`);
+        }
+        if (overview.files.length > 10) {
+          console.log(`  ... and ${overview.files.length - 10} more`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to view PR:', (error as Error).message);
+    }
+  });
+
+prCmd
+  .command('review <number>')
+  .description('Review a pull request')
+  .option('--comment <body>', 'Review comment')
+  .option('--approve', 'Approve the PR')
+  .option('--request-changes', 'Request changes')
+  .option('--ai', 'Use AI-assisted review')
+  .action(async (number, options) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { CodeReview } = await import('./github/review.js');
+    
+    const client = new GitHubClient();
+    
+    try {
+      if (options.ai) {
+        const review = new CodeReview(client);
+        const summary = await review.review({
+          prNumber: parseInt(number, 10),
+          autoComment: true,
+        });
+        console.log('\n' + summary.summary);
+      } else if (options.approve) {
+        const repo = client.getRepoFromCwd();
+        if (!repo) throw new Error('Not in a GitHub repository');
+        await client.createReview(repo.owner, repo.repo, parseInt(number, 10), {
+          event: 'APPROVE',
+          body: options.comment || 'LGTM 👍',
+        });
+        console.log('✅ Approved PR');
+      } else if (options.requestChanges) {
+        const repo = client.getRepoFromCwd();
+        if (!repo) throw new Error('Not in a GitHub repository');
+        await client.createReview(repo.owner, repo.repo, parseInt(number, 10), {
+          event: 'REQUEST_CHANGES',
+          body: options.comment || 'Changes requested',
+        });
+        console.log('✅ Requested changes');
+      } else {
+        console.log('Use --approve, --request-changes, or --ai');
+      }
+    } catch (error) {
+      console.error('Failed to review PR:', (error as Error).message);
+    }
+  });
+
+// Issue subcommands
+const issueCmd = ghCmd
+  .command('issue')
+  .description('Issue management');
+
+issueCmd
+  .command('list')
+  .description('List issues')
+  .option('-s, --state <state>', 'Filter by state', 'open')
+  .option('-l, --label <labels>', 'Filter by labels (comma-separated)')
+  .option('-a, --assignee <assignee>', 'Filter by assignee')
+  .action(async (options) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { IssuesWorkflow } = await import('./github/issues.js');
+    
+    const client = new GitHubClient();
+    const workflow = new IssuesWorkflow(client);
+    
+    try {
+      const issues = await workflow.list({
+        state: options.state,
+        labels: options.label?.split(','),
+        assignee: options.assignee,
+      });
+      
+      if (issues.length === 0) {
+        console.log('No issues found');
+        return;
+      }
+      
+      console.log(`${issues.length} issues:\n`);
+      for (const issue of issues) {
+        const labels = issue.labels.map(l => `[${l.name}]`).join(' ');
+        console.log(`#${issue.number} ${issue.title} ${labels}`);
+        console.log(`    ${issue.user.login} | ${issue.html_url}\n`);
+      }
+    } catch (error) {
+      console.error('Failed to list issues:', (error as Error).message);
+    }
+  });
+
+issueCmd
+  .command('view <number>')
+  .description('View issue details')
+  .action(async (number) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { IssuesWorkflow } = await import('./github/issues.js');
+    
+    const client = new GitHubClient();
+    const workflow = new IssuesWorkflow(client);
+    
+    try {
+      const issue = await workflow.get(parseInt(number, 10));
+      
+      console.log(`\n#${issue.number}: ${issue.title}`);
+      console.log(`State: ${issue.state}`);
+      console.log(`Author: ${issue.user.login}`);
+      console.log(`Labels: ${issue.labels.map(l => l.name).join(', ') || 'None'}`);
+      console.log(`URL: ${issue.html_url}`);
+      console.log(`\n${issue.body || 'No description'}\n`);
+    } catch (error) {
+      console.error('Failed to view issue:', (error as Error).message);
+    }
+  });
+
+issueCmd
+  .command('create')
+  .description('Create a new issue')
+  .option('-t, --title <title>', 'Issue title', 'New issue')
+  .option('-b, --body <body>', 'Issue body')
+  .option('-l, --label <labels>', 'Labels (comma-separated)')
+  .option('--type <type>', 'Issue type (bug/feature/task)', 'task')
+  .action(async (options) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { IssuesWorkflow } = await import('./github/issues.js');
+    
+    const client = new GitHubClient();
+    const workflow = new IssuesWorkflow(client);
+    
+    try {
+      const issue = await workflow.create({
+        type: options.type,
+        title: options.title,
+        description: options.body || '',
+        labels: options.label?.split(',') || [],
+      });
+      console.log(`✅ Created issue #${issue.number}: ${issue.html_url}`);
+    } catch (error) {
+      console.error('Failed to create issue:', (error as Error).message);
+    }
+  });
+
+issueCmd
+  .command('close <number>')
+  .description('Close an issue')
+  .option('-c, --comment <comment>', 'Closing comment')
+  .action(async (number, options) => {
+    const { GitHubClient } = await import('./github/client.js');
+    const { IssuesWorkflow } = await import('./github/issues.js');
+    
+    const client = new GitHubClient();
+    const workflow = new IssuesWorkflow(client);
+    
+    try {
+      await workflow.close(parseInt(number, 10), options.comment);
+    } catch (error) {
+      console.error('Failed to close issue:', (error as Error).message);
+    }
+  });
+
+// Auth subcommand
+ghCmd
+  .command('auth')
+  .description('Check GitHub authentication')
+  .action(async () => {
+    const { GitHubClient } = await import('./github/client.js');
+    
+    try {
+      const client = new GitHubClient();
+      const auth = await client.checkAuth();
+      console.log(`✅ Authenticated as ${auth.user}`);
+      console.log(`Scopes: ${auth.scopes.join(', ') || 'none'}`);
+    } catch (error) {
+      console.error('❌ Not authenticated:', (error as Error).message);
+      console.log('\nTo authenticate, set GITHUB_TOKEN environment variable:');
+      console.log('  export GITHUB_TOKEN=your_token_here');
+      console.log('\nOr run: gh auth login');
+    }
+  });
+
 program.parse();

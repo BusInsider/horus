@@ -1,7 +1,6 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { expandHomeDir } from './utils/paths.js';
 
 export interface Config {
   provider: {

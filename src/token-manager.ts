@@ -152,7 +152,6 @@ export class TokenManager {
   formatStatus(): string {
     const percentage = (this.getUsagePercentage() * 100).toFixed(1);
     const used = this.usage.total.toLocaleString();
-    const available = this.usage.available.toLocaleString();
     const max = (this.budget.maxTokens - this.budget.reserveTokens).toLocaleString();
 
     let color = 'green';

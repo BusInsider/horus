@@ -24,6 +24,7 @@ import { SubagentConfig } from './subagent.js';
 import { PlanManager } from './plan.js';
 import { handleAgentCommand, printAgentHelp } from './agents/index.js';
 import { Logger, initLogger } from './utils/logger.js';
+import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
 
 const program = new Command();
 
@@ -34,29 +35,19 @@ program
 
 program
   .command('init')
-  .description('Initialize Horus configuration')
+  .description('Initialize Horus configuration (interactive wizard)')
   .action(async () => {
     const configPath = getConfigPath();
     
     if (existsSync(configPath)) {
-      console.log(`Config already exists at ${configPath}`);
-    } else {
-      loadConfig();
+      const overwrite = await askYesNo('Configuration already exists. Reconfigure?', false);
+      if (!overwrite) {
+        console.log('Keeping existing configuration.');
+        return;
+      }
     }
 
-    const horusDir = resolve(homedir(), '.horus');
-    if (!existsSync(horusDir)) {
-      mkdirSync(horusDir, { recursive: true });
-    }
-
-    console.log('\n✅ Horus initialized!');
-    console.log(`Config: ${configPath}`);
-    console.log(`Memory: ${resolve(homedir(), '.horus', 'memory.db')}`);
-    
-    const config = loadConfig();
-    if (!config.provider.apiKey) {
-      console.log('\n⚠️  Please set your KIMI_API_KEY in the config file or environment');
-    }
+    await runConfigureWizard();
   });
 
 program
@@ -382,10 +373,30 @@ program
 program
   .command('config')
   .description('Show current configuration')
-  .action(() => {
-    const config = loadConfig();
-    console.log('Current configuration:\n');
-    console.log(JSON.stringify(config, null, 2));
+  .action(async () => {
+    await showConfiguration();
+  });
+
+program
+  .command('configure')
+  .description('Interactive configuration wizard')
+  .option('--reset', 'Reset configuration to defaults')
+  .option('--test', 'Test API connection')
+  .action(async (options) => {
+    if (options.reset) {
+      await resetConfiguration();
+    } else if (options.test) {
+      await testApiConnection();
+    } else {
+      await runConfigureWizard();
+    }
+  });
+
+program
+  .command('mcp')
+  .description('Configure MCP (Model Context Protocol) servers')
+  .action(async () => {
+    await configureMcp();
   });
 
 program
@@ -474,5 +485,23 @@ async function handleTaskCommand(input: string, memory: MemoryManager, ui: Termi
 }
 
 import chalk from 'chalk';
+import readline from 'readline';
+
+function askYesNo(question: string, defaultValue: boolean = false): Promise<boolean> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    const defaultStr = defaultValue ? 'Y/n' : 'y/N';
+    rl.question(`${question} [${defaultStr}] `, (answer) => {
+      rl.close();
+      const lower = answer.toLowerCase().trim();
+      if (lower === 'y' || lower === 'yes') resolve(true);
+      else if (lower === 'n' || lower === 'no') resolve(false);
+      else resolve(defaultValue);
+    });
+  });
+}
 
 program.parse();

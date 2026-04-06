@@ -31,6 +31,7 @@
     "fast-glob": "^3.3.2",
     "marked": "^12.0.0",
     "marked-terminal": "^7.0.0",
+    "sqlite-vec": "^0.1.9",
     "zod": "^3.22.0"
   },
   "devDependencies": {

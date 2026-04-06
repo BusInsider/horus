@@ -26,13 +26,49 @@ import { handleAgentCommand, printAgentHelp } from './agents/index.js';
 import { Logger, initLogger } from './utils/logger.js';
 import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
 import { runDoctor } from './doctor.js';
+import chalk from 'chalk';
+
+// Global state for CLI options
+let globalOptions = {
+  verbose: false,
+  quiet: false,
+  debug: false,
+  dryRun: false,
+};
 
 const program = new Command();
 
 program
   .name('horus')
   .description('Hermes-equivalent autonomous agent for Kimi K2.5')
-  .version('0.2.0');
+  .version('0.2.0')
+  .option('-v, --verbose', 'enable verbose output', false)
+  .option('-q, --quiet', 'suppress non-error output', false)
+  .option('--debug', 'enable debug mode with detailed logging', false)
+  .option('--dry-run', 'show what would be done without executing', false)
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts();
+    globalOptions = {
+      verbose: opts.verbose || false,
+      quiet: opts.quiet || false,
+      debug: opts.debug || false,
+      dryRun: opts.dryRun || false,
+    };
+
+    // Initialize logger with appropriate level
+    if (globalOptions.debug) {
+      initLogger('debug');
+    } else if (globalOptions.verbose) {
+      initLogger('info');
+    } else if (globalOptions.quiet) {
+      initLogger('error');
+    }
+
+    // Warn about dry-run
+    if (globalOptions.dryRun) {
+      console.log(chalk.yellow('🔍 DRY RUN MODE: No changes will be made\n'));
+    }
+  });
 
 program
   .command('init')
@@ -63,6 +99,8 @@ program
   .description('Start an interactive chat session')
   .option('-r, --resume <sessionId>', 'Resume a previous session')
   .option('-p, --plan', 'Enable plan mode')
+  .option('-n, --name <name>', 'Name this session for later reference')
+  .option('--tag <tags>', 'Comma-separated tags for this session')
   .action(async (path, options) => {
     const config = loadConfig();
     const cwd = resolve(path || expandHomeDir(config.workspace.defaultPath));

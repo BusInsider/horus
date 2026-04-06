@@ -19,13 +19,20 @@
 - [x] Interactive configuration wizard
 - [x] GitHub repo with security best practices
 
+### ✅ Completed
+- [x] Error recovery and retry logic (`src/error-handler.ts`)
+- [x] Graceful handling of API rate limits
+- [x] Context window management (warn at 80%, compress at 90%) (`src/token-manager.ts`)
+- [x] Token counting accuracy validation
+- [x] Session resume from crashes (`src/session-persistence.ts`)
+- [x] `horus doctor` diagnostic command (`src/doctor.ts`)
+- [x] Better tool error messages
+
 ### 🔧 In Progress / Needs Polish
-- [ ] Error recovery and retry logic
-- [ ] Graceful handling of API rate limits
-- [ ] Context window management (warn at 80%, compress at 90%)
-- [ ] Token counting accuracy validation
-- [ ] Session resume from crashes
-- [ ] Better tool error messages
+- [ ] Integrate error handler into agent loop
+- [ ] Integrate token manager into memory system
+- [ ] Integrate session persistence into agent
+- [ ] Add compression strategies when tokens exceeded
 
 ## 🎯 Phase 2: Developer Experience
 

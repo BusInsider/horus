@@ -34,34 +34,29 @@
 - [x] Integrate session persistence into agent
 - [x] Add compression strategies when tokens exceeded
 
-## 🎯 Phase 2: Developer Experience
+## 🎯 Phase 2: Developer Experience (In Progress)
 
 ### Configuration & Setup
-- [ ] `horus doctor` - Diagnostic command that checks:
-  - API connectivity
-  - Required dependencies
-  - File permissions
-  - Git configuration
-  - Available tools (ripgrep, git, etc.)
-- [ ] Shell completion scripts (bash, zsh, fish)
+- [x] `horus doctor` - Diagnostic command ✅
+- [x] Shell completion scripts (bash, zsh, fish) ✅
 - [ ] `.horusrc` file support (project-specific config)
 - [ ] Environment profiles (dev, staging, production)
 
 ### CLI Improvements
-- [ ] Verbose/debug mode (`-v`, `--verbose`, `--debug`)
-- [ ] Quiet mode (`-q`, `--quiet`)
-- [ ] Dry-run mode (`--dry-run`) - show what would be done
+- [x] Verbose/debug mode (`-v`, `--verbose`, `--debug`) ✅
+- [x] Quiet mode (`-q`, `--quiet`) ✅
+- [x] Dry-run mode (`--dry-run`) ✅
 - [ ] Non-interactive mode for CI/CD
 - [ ] Progress indicators for long operations
 - [ ] Colored output themes (configurable)
 
 ### Session Management
-- [ ] Named sessions (`horus chat --name "feature-auth"`)
-- [ ] Session tags and metadata
-- [ ] Export session to markdown/HTML
-- [ ] Import session
+- [x] Named sessions (`horus chat --name "feature-auth"`) ✅
+- [x] Session tags and metadata ✅
+- [x] Export session to markdown/HTML ✅
+- [x] Import session ✅
+- [x] Search across sessions ✅
 - [ ] Session archiving (compress old sessions)
-- [ ] Search across sessions
 - [ ] Session templates (pre-configured setups)
 
 ## 🎯 Phase 3: Advanced Memory & Context

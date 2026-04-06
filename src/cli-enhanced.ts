@@ -353,8 +353,12 @@ program
     memory.close();
   });
 
-program
+const sessionsCmd = program
   .command('sessions')
+  .description('Session management commands');
+
+sessionsCmd
+  .command('list')
   .description('List all saved sessions')
   .action(async () => {
     const config = loadConfig();
@@ -365,8 +369,8 @@ program
 
     await memory.initialize();
 
-    const { Database } = await import('better-sqlite3');
-    const db = new Database(memory['db'].name);
+    // Access the database directly through memory manager
+    const db = (memory as any).db as Database.Database;
     const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as any[];
     
     if (sessions.length === 0) {
@@ -382,8 +386,57 @@ program
       }
     }
 
-    db.close();
     memory.close();
+  });
+
+sessionsCmd
+  .command('archive')
+  .description('Archive old sessions to save space')
+  .option('-d, --days <days>', 'Archive sessions older than N days', '30')
+  .option('--dry-run', 'Show what would be archived without doing it')
+  .action(async (options) => {
+    const config = loadConfig();
+    const { SessionArchiver } = await import('./session-archiver.js');
+    
+    const archiver = new SessionArchiver(config.memory.dbPath);
+    await archiver.initialize();
+    
+    const days = parseInt(options.days, 10);
+    const result = await archiver.archiveOldSessions(days, options.dryRun);
+    
+    if (options.dryRun) {
+      console.log(`Would archive ${result.archived} sessions (${result.savedMB.toFixed(1)} MB)`);
+    } else {
+      console.log(`✅ Archived ${result.archived} sessions, saved ${result.savedMB.toFixed(1)} MB`);
+    }
+    
+    archiver.close();
+  });
+
+sessionsCmd
+  .command('archives')
+  .description('List archived sessions')
+  .action(async () => {
+    const config = loadConfig();
+    const { SessionArchiver } = await import('./session-archiver.js');
+    
+    const archiver = new SessionArchiver(config.memory.dbPath);
+    await archiver.initialize();
+    
+    const archives = archiver.listArchives();
+    
+    if (archives.length === 0) {
+      console.log('No archived sessions');
+    } else {
+      console.log('Archived sessions:\n');
+      for (const a of archives) {
+        const date = a.archivedAt.toLocaleString();
+        const saved = ((a.originalSize - a.compressedSize) / (1024 * 1024)).toFixed(1);
+        console.log(`${a.id.slice(0, 8)}...  ${date}  ${a.name || 'unnamed'} (${saved} MB saved)`);
+      }
+    }
+    
+    archiver.close();
   });
 
 program
@@ -448,13 +501,28 @@ program
 program
   .command('workspace [path]')
   .description('Set or show the default workspace directory')
-  .action((path) => {
+  .option('--index', 'Re-index current workspace')
+  .action(async (path, options) => {
     const config = loadConfig();
+    
+    if (options.index) {
+      const { withSpinner } = await import('./ui/progress.js');
+      await withSpinner('Indexing workspace', async () => {
+        const memory = new MemoryManager({
+          dbPath: config.memory.dbPath,
+        });
+        await memory.initialize();
+        await memory.indexWorkspace(config.workspace.defaultPath);
+        memory.close();
+      });
+      return;
+    }
     
     if (!path) {
       // Show current workspace
-      console.log(`Current workspace: ${config.workspace.defaultPath}`);
+      console.log(`Current workspace: ${chalk.cyan(config.workspace.defaultPath)}`);
       console.log(`Resolved: ${expandHomeDir(config.workspace.defaultPath)}`);
+      console.log(`Auto-index: ${config.workspace.autoIndex ? 'enabled' : 'disabled'}`);
       return;
     }
     
@@ -530,6 +598,53 @@ async function handleTaskCommand(input: string, memory: MemoryManager, ui: Termi
   ui.writeLine(`\n🚀 Task spawned: ${taskId.slice(0, 8)}...`);
 }
 
+// Session templates
+program
+  .command('templates')
+  .description('Manage session templates')
+  .option('-l, --list', 'List available templates')
+  .option('-c, --create <name>', 'Create new template from current session')
+  .option('-d, --delete <name>', 'Delete a template')
+  .option('--apply <name>', 'Apply template to current session')
+  .action(async (options) => {
+    const config = loadConfig();
+    const { SessionTemplates } = await import('./session-templates.js');
+    
+    const templates = new SessionTemplates(config.memory.dbPath);
+    await templates.initialize();
+    
+    if (options.list || (!options.create && !options.delete && !options.apply)) {
+      const list = templates.list();
+      if (list.length === 0) {
+        console.log('No templates. Use --create <name> to create one.');
+      } else {
+        console.log('Available templates:');
+        for (const t of list) {
+          console.log(`  ${chalk.cyan(t.name)} - ${t.description}`);
+        }
+      }
+    } else if (options.create) {
+      const description = await askQuestion('Description: ');
+      const systemPrompt = await askQuestion('System prompt (optional): ');
+      const tags = await askQuestion('Tags (comma-separated): ');
+      
+      templates.create({
+        name: options.create,
+        description,
+        systemPrompt: systemPrompt || undefined,
+        tags: tags ? tags.split(',').map((t: string) => t.trim()) : [],
+      });
+      console.log(`✅ Template '${options.create}' created`);
+    } else if (options.delete) {
+      templates.delete(options.delete);
+      console.log(`✅ Template '${options.delete}' deleted`);
+    } else if (options.apply) {
+      console.log(`Apply template: ${options.apply}`);
+    }
+    
+    templates.close();
+  });
+
 import chalk from 'chalk';
 import readline from 'readline';
 
@@ -546,6 +661,19 @@ function askYesNo(question: string, defaultValue: boolean = false): Promise<bool
       if (lower === 'y' || lower === 'yes') resolve(true);
       else if (lower === 'n' || lower === 'no') resolve(false);
       else resolve(defaultValue);
+    });
+  });
+}
+
+function askQuestion(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
     });
   });
 }

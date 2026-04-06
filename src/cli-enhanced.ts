@@ -25,6 +25,7 @@ import { PlanManager } from './plan.js';
 import { handleAgentCommand, printAgentHelp } from './agents/index.js';
 import { Logger, initLogger } from './utils/logger.js';
 import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
+import { runDoctor } from './doctor.js';
 
 const program = new Command();
 
@@ -48,6 +49,13 @@ program
     }
 
     await runConfigureWizard();
+  });
+
+program
+  .command('doctor')
+  .description('Run diagnostic checks on Horus installation')
+  .action(async () => {
+    await runDoctor();
   });
 
 program

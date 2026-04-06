@@ -16,6 +16,18 @@ export interface Checkpoint {
   metadata?: string;
 }
 
+// Database row type for checkpoint queries
+interface CheckpointRow {
+  id: string;
+  session_id: string;
+  name: string;
+  type: 'git' | 'snapshot';
+  git_ref?: string;
+  snapshot_path?: string;
+  created_at: number;
+  metadata?: string;
+}
+
 export class CheckpointManager {
   private db: Database.Database;
   private cwd: string;
@@ -111,7 +123,7 @@ export class CheckpointManager {
 
   list(sessionId?: string): Checkpoint[] {
     let sql = 'SELECT * FROM checkpoints';
-    const params: any[] = [];
+    const params: (string | number)[] = [];
 
     if (sessionId) {
       sql += ' WHERE session_id = ?';
@@ -120,7 +132,7 @@ export class CheckpointManager {
 
     sql += ' ORDER BY created_at DESC';
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as CheckpointRow[];
 
     return rows.map(row => ({
       id: row.id,
@@ -135,7 +147,7 @@ export class CheckpointManager {
   }
 
   getCheckpoint(id: string): Checkpoint | null {
-    const row = this.db.prepare('SELECT * FROM checkpoints WHERE id = ?').get(id) as any;
+    const row = this.db.prepare('SELECT * FROM checkpoints WHERE id = ?').get(id) as CheckpointRow | undefined;
     if (!row) return null;
 
     return {
@@ -151,7 +163,7 @@ export class CheckpointManager {
   }
 
   private getMostRecent(): Checkpoint | null {
-    const row = this.db.prepare('SELECT * FROM checkpoints ORDER BY created_at DESC LIMIT 1').get() as any;
+    const row = this.db.prepare('SELECT * FROM checkpoints ORDER BY created_at DESC LIMIT 1').get() as CheckpointRow | undefined;
     if (!row) return null;
 
     return {

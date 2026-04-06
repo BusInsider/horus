@@ -59,7 +59,7 @@ program
   .command('chat [path]')
   .description('Start an interactive chat session')
   .option('-r, --resume <sessionId>', 'Resume a previous session')
-  .action(async (path, options) => {
+  .action(async (path, _options) => {
     const cwd = resolve(path || '.');
     
     if (!existsSync(cwd)) {

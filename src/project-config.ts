@@ -76,7 +76,7 @@ export class ProjectConfigManager {
         
         if (file.endsWith('.js')) {
           // JS config - require it
-          delete require.cache[require.resolve(filepath)];
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
           this.config = require(filepath);
         } else {
           // JSON config

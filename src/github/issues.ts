@@ -412,7 +412,7 @@ export class BulkIssueOperations {
     return closed;
   }
 
-  async labelByPattern(pattern: string, label: string): Promise<number> {
+  async labelByPattern(pattern: string, _label: string): Promise<number> {
     const issues = await this.workflow.list({ state: 'open' });
     const regex = new RegExp(pattern, 'i');
 

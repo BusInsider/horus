@@ -2,6 +2,7 @@
 // CoALA-compliant with agentic self-management
 
 import Database from 'better-sqlite3';
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -277,8 +278,7 @@ export class MemoryManagerV2 {
     
     if (this.db && embedding.length === this.embeddingDimension) {
       // Calculate content hash for deduplication
-      const crypto = require('crypto');
-      const contentHash = crypto.createHash('md5').update(memory.content).digest('hex');
+      const contentHash = createHash('md5').update(memory.content).digest('hex');
       
       this.db.prepare(`
         INSERT INTO semantic_embeddings (embedding, memory_id, content_hash, created_at)

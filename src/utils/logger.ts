@@ -1,6 +1,8 @@
 // Logging utility for Horus
 // Structured logging with levels
 
+import { appendFileSync } from 'fs';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
@@ -59,9 +61,8 @@ export class Logger {
     // File output if configured
     if (this.logFile) {
       try {
-        const fs = require('fs');
-        fs.appendFileSync(this.logFile, formatted + '\n');
-      } catch (e) {
+        appendFileSync(this.logFile, formatted + '\n');
+      } catch {
         // Silent fail for logging errors
       }
     }

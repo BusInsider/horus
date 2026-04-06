@@ -2,8 +2,7 @@
 // Interactive setup, validation, and management
 
 import { promises as fs } from 'fs';
-import { homedir } from 'os';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import readline from 'readline';
 import { loadConfig, saveConfig, Config, getConfigPath } from './config.js';
 import { expandHomeDir } from './utils/paths.js';
@@ -36,7 +35,7 @@ export async function runConfigureWizard(): Promise<void> {
   console.log(chalk.blue('\n🧠 Horus Configuration Wizard\n'));
   console.log('This will guide you through setting up Horus.\n');
 
-  const config = loadConfig();
+  const _config = loadConfig(); // For future use when MCP is fully implemented
 
   // Step 1: API Configuration
   console.log(chalk.yellow('Step 1: API Configuration'));

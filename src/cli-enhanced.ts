@@ -28,6 +28,14 @@ import { runConfigureWizard, showConfiguration, testApiConnection, resetConfigur
 import { runDoctor } from './doctor.js';
 import chalk from 'chalk';
 
+// Type for database session rows
+interface SessionRow {
+  id: string;
+  updated_at: number;
+  cwd: string;
+  summary?: string;
+}
+
 // Global state for CLI options
 let globalOptions = {
   verbose: false,
@@ -125,7 +133,7 @@ program
       });
 
       const subagentConfig: SubagentConfig = {
-        db: {} as any, // Will be set after memory init
+        db: null as unknown as Database.Database, // Will be set after memory init
         horusPath: process.argv[1],
         maxConcurrent: 5,
         defaultTimeout: 300,
@@ -258,7 +266,7 @@ program
       });
 
       const subagentConfig: SubagentConfig = {
-        db: {} as any,
+        db: null as unknown as Database.Database,
         horusPath: process.argv[1],
         maxConcurrent: 5,
         defaultTimeout: 300,
@@ -370,8 +378,8 @@ sessionsCmd
     await memory.initialize();
 
     // Access the database directly through memory manager
-    const db = (memory as any).db as Database.Database;
-    const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as any[];
+    const db = (memory as { db: Database.Database }).db;
+    const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as SessionRow[];
     
     if (sessions.length === 0) {
       console.log('No saved sessions');

@@ -1,7 +1,7 @@
 // GitHub PR Workflow - Create, checkout, manage PRs with git integration
 
 import { execSync } from 'child_process';
-import { GitHubClient, CreatePROptions, PullRequest } from './client.js';
+import { GitHubClient, PullRequest } from './client.js';
 
 // ============================================================================
 // TYPES
@@ -123,7 +123,6 @@ export class PRWorkflow {
 
     const pr = await this.client.getPullRequest(repo.owner, repo.repo, prNumber);
     const branchName = pr.head.ref;
-    const remoteBranch = `origin/${branchName}`;
 
     // Check if we already have a local branch
     const localBranches = this.listLocalBranches();

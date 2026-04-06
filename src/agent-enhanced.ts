@@ -8,7 +8,7 @@ import { TerminalUI } from './ui/terminal.js';
 import { PlanManager, Plan, PlanStep } from './plan.js';
 import { CheckpointManager } from './checkpoint.js';
 import { SubagentManager } from './subagent.js';
-import { ErrorHandler, ErrorContext, getErrorHandler } from './error-handler.js';
+import { ErrorHandler, getErrorHandler } from './error-handler.js';
 import { TokenManager, getTokenManager } from './token-manager.js';
 import { SessionPersistence, getSessionPersistence } from './session-persistence.js';
 import { Logger } from './utils/logger.js';
@@ -36,7 +36,6 @@ export class EnhancedAgent {
   private cwd: string = '';
   private planManager?: PlanManager;
   private checkpointManager?: CheckpointManager;
-  private subagentManager?: SubagentManager;
   private errorHandler: ErrorHandler;
   private tokenManager: TokenManager;
   private sessionPersistence: SessionPersistence;
@@ -82,7 +81,7 @@ export class EnhancedAgent {
 
     // Initialize managers
     this.checkpointManager = this.memory.checkpointManager;
-    this.subagentManager = this.memory.subagentManager;
+
     this.planManager = new PlanManager(cwd);
 
     // Initialize session persistence
@@ -429,9 +428,9 @@ export class EnhancedAgent {
       return false;
     }
 
-    let args: any;
+    let args: Record<string, unknown>;
     try {
-      args = JSON.parse(toolCall.function.arguments);
+      args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
     } catch {
       args = {};
     }

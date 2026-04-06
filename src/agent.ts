@@ -97,7 +97,6 @@ export class Agent {
     // ═══════════════════════════════════════════════════════════
     const chunks: string[] = [];
     const toolCalls: ToolCall[] = [];
-    let currentToolCalls: Map<number, ToolCall> = new Map();
 
     for await (const chunk of this.kimi.stream(messages, toolDefinitions)) {
       switch (chunk.type) {

@@ -3,8 +3,7 @@
 
 import { promises as fs } from 'fs';
 import { execSync } from 'child_process';
-import { homedir } from 'os';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import chalk from 'chalk';
 import { loadConfig, getConfigPath } from './config.js';
 import { expandHomeDir } from './utils/paths.js';

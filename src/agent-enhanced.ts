@@ -1,5 +1,5 @@
-// Enhanced Agent with Plan Mode, Checkpoints, and Subagents
-// Hermes-equivalent flexibility
+// Enhanced Agent with Plan Mode, Checkpoints, Subagents, and Stability Features
+// Hermes-equivalent flexibility with error recovery, token management, and persistence
 
 import { KimiClient, Message, ToolDefinition, ToolCall } from './kimi.js';
 import { MemoryManager, RecalledMemory } from './memory/manager.js';
@@ -7,7 +7,11 @@ import { Tool, ToolContext } from './tools/types.js';
 import { TerminalUI } from './ui/terminal.js';
 import { PlanManager, Plan, PlanStep } from './plan.js';
 import { CheckpointManager } from './checkpoint.js';
-import { SubagentManager, SubagentTask } from './subagent.js';
+import { SubagentManager } from './subagent.js';
+import { ErrorHandler, ErrorContext, getErrorHandler } from './error-handler.js';
+import { TokenManager, getTokenManager } from './token-manager.js';
+import { SessionPersistence, getSessionPersistence } from './session-persistence.js';
+import { Logger } from './utils/logger.js';
 
 export interface EnhancedAgentConfig {
   kimi: KimiClient;
@@ -17,6 +21,7 @@ export interface EnhancedAgentConfig {
   maxIterations?: number;
   autoCheckpoint?: boolean;
   planMode?: boolean;
+  logger?: Logger;
 }
 
 export class EnhancedAgent {
@@ -32,6 +37,11 @@ export class EnhancedAgent {
   private planManager?: PlanManager;
   private checkpointManager?: CheckpointManager;
   private subagentManager?: SubagentManager;
+  private errorHandler: ErrorHandler;
+  private tokenManager: TokenManager;
+  private sessionPersistence: SessionPersistence;
+  private logger: Logger;
+  private isRunning: boolean = false;
 
   constructor(config: EnhancedAgentConfig) {
     this.kimi = config.kimi;
@@ -41,12 +51,29 @@ export class EnhancedAgent {
     this.maxIterations = config.maxIterations || 50;
     this.autoCheckpoint = config.autoCheckpoint ?? true;
     this.planMode = config.planMode ?? false;
+    this.logger = config.logger || new Logger('agent');
+    
+    // Initialize stability components
+    this.errorHandler = getErrorHandler(this.logger);
+    this.tokenManager = getTokenManager({}, this.logger);
+    this.sessionPersistence = getSessionPersistence({}, this.logger);
   }
 
-  async run(task: string, cwd: string, options?: { planMode?: boolean }): Promise<void> {
+  async run(task: string, cwd: string, options?: { planMode?: boolean; resumeFromCheckpoint?: string }): Promise<void> {
     this.cwd = cwd;
     this.iterationCount = 0;
     const usePlanMode = options?.planMode ?? this.planMode;
+
+    // Check for crashed session
+    if (!options?.resumeFromCheckpoint) {
+      const crashedSession = await this.sessionPersistence.checkForCrashedSession();
+      if (crashedSession) {
+        const resume = await this.askYesNo(`Found crashed session from ${new Date(crashedSession.timestamp).toLocaleString()}. Resume?`, true);
+        if (resume) {
+          return this.resumeFromCheckpoint(crashedSession.id);
+        }
+      }
+    }
 
     // Start or resume session
     await this.memory.startSession(cwd);
@@ -58,22 +85,72 @@ export class EnhancedAgent {
     this.subagentManager = this.memory.subagentManager;
     this.planManager = new PlanManager(cwd);
 
+    // Initialize session persistence
+    await this.sessionPersistence.initialize();
+
     // Index workspace
     this.ui.showIndexingStart();
     const indexResult = await this.memory.indexWorkspace(cwd);
     this.ui.showIndexingComplete(indexResult.files, indexResult.chunks);
 
-    // PLAN MODE: Generate and execute plan
-    if (usePlanMode) {
-      await this.runWithPlan(task);
-    } else {
-      // DIRECT MODE: Execute task directly
-      await this.runDirect(task);
+    // Start auto-save
+    this.startAutoSave();
+
+    try {
+      // PLAN MODE: Generate and execute plan
+      if (usePlanMode) {
+        await this.runWithPlan(task);
+      } else {
+        // DIRECT MODE: Execute task directly
+        await this.runDirect(task);
+      }
+    } finally {
+      // Cleanup
+      this.isRunning = false;
+      this.sessionPersistence.stopAutoSave();
+      await this.memory.endSession();
+      this.ui.showSessionEnd();
+    }
+  }
+
+  private async resumeFromCheckpoint(checkpointId: string): Promise<void> {
+    const result = await this.sessionPersistence.resumeFromCheckpoint(checkpointId);
+    
+    if (!result.success || !result.checkpoint) {
+      this.ui.error(`Failed to resume: ${result.error}`);
+      return;
     }
 
-    // End session
-    await this.memory.endSession();
-    this.ui.showSessionEnd();
+    const checkpoint = result.checkpoint;
+    this.cwd = checkpoint.workingDirectory;
+    this.iterationCount = checkpoint.metadata.iterationCount;
+
+    // Restore session
+    await this.memory.startSession(this.cwd, checkpoint.sessionId);
+    this.ui.showSessionStart(checkpoint.sessionId, this.cwd);
+    this.ui.writeLine(`\n🔄 Resumed from checkpoint (iteration ${this.iterationCount})\n`);
+
+    // Continue execution
+    await this.runDirect('Continue from where we left off');
+  }
+
+  private startAutoSave(): void {
+    const sessionId = this.memory.getCurrentSession()?.id;
+    if (!sessionId) return;
+
+    this.sessionPersistence.startAutoSave(sessionId, () => ({
+      sessionId,
+      messages: this.memory.getMessages(),
+      workingDirectory: this.cwd,
+      metadata: {
+        iterationCount: this.iterationCount,
+      },
+    }));
+  }
+
+  private async askYesNo(question: string, defaultValue: boolean = false): Promise<boolean> {
+    // Simple implementation - in real UI would use proper prompt
+    return defaultValue;
   }
 
   private async runWithPlan(objective: string): Promise<void> {
@@ -81,25 +158,52 @@ export class EnhancedAgent {
     this.ui.writeLine('\n📝 Generating plan...\n');
     const plan = await this.generatePlan(objective);
     
+    // Check token budget
+    const validation = this.tokenManager.validateContextSize([
+      { role: 'user', content: objective },
+    ]);
+    if (!validation.valid) {
+      this.ui.warn(`Token warning: ${validation.reason}`);
+    }
+    
     // Write plan to file
     await this.planManager!.writePlan(plan);
     this.ui.writeLine(`\n✅ Plan written to ${this.cwd}/PLAN.md`);
     this.ui.writeLine(`\n${plan.steps.length} steps, estimated ${plan.estimatedTokens} tokens`);
     
-    // In real implementation, wait for user approval here
-    // For now, auto-execute
+    // Show token usage
+    this.tokenManager.updateUsage({ messages: plan.estimatedTokens });
+    this.logTokenUsage();
+    
     this.ui.writeLine('\n▶️  Executing plan...\n');
 
     // Execute each step
     for (const step of plan.steps) {
+      // Check tokens before step
+      if (this.tokenManager.shouldCompress()) {
+        this.ui.warn('Token limit approaching, compressing context...');
+        await this.compressContext();
+      }
+
       // Create checkpoint if needed
       if (step.checkpoint && this.autoCheckpoint) {
         this.ui.writeLine(`\n💾 Creating checkpoint: ${step.description}`);
         await this.checkpointManager!.create(step.description, this.memory.getCurrentSession()!.id);
+        
+        // Also create session checkpoint
+        await this.sessionPersistence.createCheckpoint({
+          sessionId: this.memory.getCurrentSession()!.id,
+          messages: this.memory.getMessages(),
+          workingDirectory: this.cwd,
+          currentPlan: plan,
+          metadata: {
+            iterationCount: this.iterationCount,
+          },
+        });
       }
 
-      // Execute step
-      const success = await this.executeStep(step);
+      // Execute step with error handling
+      const success = await this.executeStepWithRecovery(step);
       
       if (!success) {
         this.ui.error(`Step failed: ${step.description}`);
@@ -119,6 +223,8 @@ export class EnhancedAgent {
   }
 
   private async runDirect(task: string): Promise<void> {
+    this.isRunning = true;
+
     // Add initial system prompt
     await this.memory.addMessage({
       role: 'system',
@@ -136,12 +242,285 @@ export class EnhancedAgent {
       await this.checkpointManager!.create('Initial state', this.memory.getCurrentSession()!.id);
     }
 
-    // Main loop
-    while (this.iterationCount < this.maxIterations) {
-      const shouldContinue = await this.step();
-      if (!shouldContinue) break;
-      this.iterationCount++;
+    // Main loop with error recovery
+    while (this.isRunning && this.iterationCount < this.maxIterations) {
+      try {
+        const shouldContinue = await this.step();
+        if (!shouldContinue) break;
+        this.iterationCount++;
+        
+        // Reset retry count on successful step
+        this.errorHandler.resetRetryCount('step');
+        
+      } catch (error) {
+        const recovery = await this.errorHandler.handle(error as Error, {
+          operation: 'step',
+          sessionId: this.memory.getCurrentSession()?.id,
+          recoverable: true,
+        });
+
+        if (recovery.recovered) {
+          if (recovery.result?.action === 'compress_context') {
+            await this.compressContext();
+          } else if (recovery.result?.action === 'compress_memory') {
+            await this.memory.compressOldestMessages?.();
+          }
+          // Retry the step
+          continue;
+        } else {
+          this.ui.error('Unrecoverable error, stopping...');
+          break;
+        }
+      }
     }
+  }
+
+  private async step(): Promise<boolean> {
+    // Check token usage
+    const messages = this.memory.getMessages();
+    const messageTokens = this.tokenManager.estimateMessages(messages);
+    this.tokenManager.updateUsage({ messages: messageTokens });
+
+    // Warn if approaching limit
+    if (this.tokenManager.shouldWarn()) {
+      this.ui.warn(`Token usage: ${(this.tokenManager.getUsagePercentage() * 100).toFixed(0)}%`);
+    }
+
+    // Compress if needed
+    if (this.tokenManager.shouldCompress()) {
+      this.ui.warn('Token limit approaching, compressing context...');
+      await this.compressContext();
+    }
+
+    // RECALL
+    const lastMessage = this.memory.getLastMessage();
+    let relevantMemories: RecalledMemory[] = [];
+
+    if (lastMessage && lastMessage.role === 'user') {
+      this.ui.showRecallStart();
+      relevantMemories = await this.memory.recall(lastMessage.content);
+      this.ui.showRecalledMemories(relevantMemories);
+    }
+
+    // Build context
+    const contextMessages = await this.buildContext(relevantMemories);
+    
+    // Validate context size
+    const validation = this.tokenManager.validateContextSize(contextMessages);
+    if (!validation.valid) {
+      this.ui.warn(`Context too large: ${validation.reason}`);
+      await this.compressContext();
+    }
+
+    const toolDefinitions: ToolDefinition[] = Array.from(this.tools.values()).map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      },
+    }));
+
+    // STREAM
+    const chunks: string[] = [];
+    const toolCalls: ToolCall[] = [];
+
+    try {
+      for await (const chunk of this.kimi.stream(contextMessages, toolDefinitions)) {
+        switch (chunk.type) {
+          case 'token':
+            this.ui.write(chunk.content || '');
+            chunks.push(chunk.content || '');
+            break;
+
+          case 'tool_call':
+            if (chunk.toolCall) {
+              toolCalls.push(chunk.toolCall);
+              this.ui.showToolCall(chunk.toolCall);
+            }
+            break;
+
+          case 'done':
+            if (chunks.length > 0) {
+              await this.memory.addMessage({
+                role: 'assistant',
+                content: chunks.join(''),
+                tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+              });
+            }
+            break;
+
+          case 'error':
+            throw new Error(chunk.content || 'Unknown API error');
+        }
+      }
+    } catch (error) {
+      // Let error handler deal with API errors
+      throw error;
+    }
+
+    // ACT
+    if (toolCalls.length === 0) {
+      this.ui.write('\n[Task complete]\n');
+      return false;
+    }
+
+    for (const toolCall of toolCalls) {
+      const result = await this.executeToolCallWithRecovery(toolCall);
+      
+      // Auto-checkpoint on edit operations
+      if (toolCall.function.name === 'edit' && this.autoCheckpoint) {
+        await this.checkpointManager!.create(`After ${toolCall.function.name}`, this.memory.getCurrentSession()!.id);
+      }
+
+      if (!result) return false;
+    }
+
+    return true;
+  }
+
+  private async executeStepWithRecovery(step: PlanStep): Promise<boolean> {
+    const context: ToolContext = {
+      cwd: this.cwd,
+      sessionId: this.memory.getCurrentSession()?.id,
+    };
+
+    try {
+      const tool = this.tools.get(step.tool);
+      if (!tool) {
+        throw new Error(`Unknown tool: ${step.tool}`);
+      }
+
+      const result = await tool.execute(step.args, context);
+      
+      if (result.ok) {
+        this.ui.showToolResult(step.tool, result.content);
+        return true;
+      } else {
+        this.ui.showToolError(step.tool, result.error);
+        return false;
+      }
+    } catch (error) {
+      const recovery = await this.errorHandler.handle(error as Error, {
+        operation: 'executeStep',
+        tool: step.tool,
+        sessionId: this.memory.getCurrentSession()?.id,
+        recoverable: true,
+      });
+
+      if (recovery.recovered) {
+        // Retry the step
+        return this.executeStepWithRecovery(step);
+      }
+
+      return false;
+    }
+  }
+
+  private async executeToolCallWithRecovery(toolCall: ToolCall): Promise<boolean> {
+    const tool = this.tools.get(toolCall.function.name);
+    if (!tool) {
+      this.ui.error(`Unknown tool: ${toolCall.function.name}`);
+      await this.memory.addMessage({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: `Error: Unknown tool "${toolCall.function.name}"`,
+      });
+      return false;
+    }
+
+    let args: any;
+    try {
+      args = JSON.parse(toolCall.function.arguments);
+    } catch {
+      args = {};
+    }
+
+    this.ui.showToolExecuting(tool.name);
+    const context: ToolContext = {
+      cwd: this.cwd,
+      sessionId: this.memory.getCurrentSession()?.id,
+    };
+
+    try {
+      let result: string;
+      const startTime = Date.now();
+
+      if (tool.executeStream && this.shouldStream(tool.name)) {
+        const parts: string[] = [];
+        for await (const part of tool.executeStream(args, context)) {
+          this.ui.writeToolOutput(part);
+          parts.push(part);
+        }
+        result = parts.join('');
+      } else {
+        const res = await tool.execute(args, context);
+        if (res.ok) {
+          result = res.content;
+          this.ui.showToolResult(tool.name, result);
+        } else {
+          result = `Error: ${res.error}`;
+          this.ui.showToolError(tool.name, res.error);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+
+      await this.memory.addMessage({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: result.substring(0, 8000),
+      });
+
+      const outcomeType = result.startsWith('Error:') ? 'error' : 'success';
+      await this.memory.recordEpisode(
+        tool.name,
+        `Tool call: ${tool.name} with args ${JSON.stringify(args)}`,
+        result.substring(0, 1000),
+        outcomeType,
+        `Duration: ${duration}ms`
+      );
+
+      return outcomeType === 'success';
+
+    } catch (error) {
+      const recovery = await this.errorHandler.handle(error as Error, {
+        operation: 'executeToolCall',
+        tool: tool.name,
+        sessionId: this.memory.getCurrentSession()?.id,
+        recoverable: true,
+      });
+
+      if (recovery.recovered) {
+        // Retry the tool call
+        return this.executeToolCallWithRecovery(toolCall);
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.memory.addMessage({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: `Error: ${errorMessage}`,
+      });
+
+      return false;
+    }
+  }
+
+  private async compressContext(): Promise<void> {
+    const messages = this.memory.getMessages();
+    const target = this.tokenManager.getCompressionTarget();
+    const toCompress = this.tokenManager.suggestMessagesToCompress(messages, target.currentTokens - target.targetTokens);
+    
+    if (toCompress > 0) {
+      this.ui.writeLine(`\n[Compressing ${toCompress} messages to save tokens...]`);
+      await this.memory.compressOldestMessages?.();
+    }
+  }
+
+  private logTokenUsage(): void {
+    const usage = this.tokenManager.getUsage();
+    this.logger.debug('Token usage:', usage);
   }
 
   private async generatePlan(objective: string): Promise<Plan> {
@@ -190,183 +569,6 @@ Return JSON:
         rollbackStrategy: 'Manual rollback if needed',
       };
     }
-  }
-
-  private async executeStep(step: PlanStep): Promise<boolean> {
-    this.ui.writeLine(`\n📍 Step ${step.id}: ${step.description}`);
-
-    const tool = this.tools.get(step.tool);
-    if (!tool) {
-      this.ui.error(`Unknown tool: ${step.tool}`);
-      return false;
-    }
-
-    try {
-      const context: ToolContext = {
-        cwd: this.cwd,
-        sessionId: this.memory.getCurrentSession()?.id,
-      };
-
-      const result = await tool.execute(step.args, context);
-      
-      if (result.ok) {
-        this.ui.showToolResult(step.tool, result.content);
-        return true;
-      } else {
-        this.ui.showToolError(step.tool, result.error);
-        return false;
-      }
-    } catch (error) {
-      this.ui.showToolError(step.tool, error instanceof Error ? error.message : 'Unknown error');
-      return false;
-    }
-  }
-
-  private async step(): Promise<boolean> {
-    // RECALL
-    const lastMessage = this.memory.getLastMessage();
-    let relevantMemories: RecalledMemory[] = [];
-
-    if (lastMessage && lastMessage.role === 'user') {
-      this.ui.showRecallStart();
-      relevantMemories = await this.memory.recall(lastMessage.content);
-      this.ui.showRecalledMemories(relevantMemories);
-    }
-
-    // Build context
-    const messages = await this.buildContext(relevantMemories);
-    const toolDefinitions: ToolDefinition[] = Array.from(this.tools.values()).map(tool => ({
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      },
-    }));
-
-    // STREAM
-    const chunks: string[] = [];
-    const toolCalls: ToolCall[] = [];
-
-    for await (const chunk of this.kimi.stream(messages, toolDefinitions)) {
-      switch (chunk.type) {
-        case 'token':
-          this.ui.write(chunk.content || '');
-          chunks.push(chunk.content || '');
-          break;
-
-        case 'tool_call':
-          if (chunk.toolCall) {
-            toolCalls.push(chunk.toolCall);
-            this.ui.showToolCall(chunk.toolCall);
-          }
-          break;
-
-        case 'done':
-          if (chunks.length > 0) {
-            await this.memory.addMessage({
-              role: 'assistant',
-              content: chunks.join(''),
-              tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-            });
-          }
-          break;
-
-        case 'error':
-          this.ui.error(chunk.content || 'Unknown error');
-          return false;
-      }
-    }
-
-    // ACT
-    if (toolCalls.length === 0) {
-      this.ui.write('\n[Task complete]\n');
-      return false;
-    }
-
-    for (const toolCall of toolCalls) {
-      const result = await this.executeToolCall(toolCall);
-      
-      // Auto-checkpoint on edit operations
-      if (toolCall.function.name === 'edit' && this.autoCheckpoint) {
-        await this.checkpointManager!.create(`After ${toolCall.function.name}`, this.memory.getCurrentSession()!.id);
-      }
-
-      if (!result) return false;
-    }
-
-    return true;
-  }
-
-  private async executeToolCall(toolCall: ToolCall): Promise<boolean> {
-    const tool = this.tools.get(toolCall.function.name);
-    if (!tool) {
-      this.ui.error(`Unknown tool: ${toolCall.function.name}`);
-      await this.memory.addMessage({
-        role: 'tool',
-        tool_call_id: toolCall.id,
-        content: `Error: Unknown tool "${toolCall.function.name}"`,
-      });
-      return false;
-    }
-
-    let args: any;
-    try {
-      args = JSON.parse(toolCall.function.arguments);
-    } catch {
-      args = {};
-    }
-
-    this.ui.showToolExecuting(tool.name);
-    const context: ToolContext = {
-      cwd: this.cwd,
-      sessionId: this.memory.getCurrentSession()?.id,
-    };
-
-    let result: string;
-    const startTime = Date.now();
-
-    try {
-      if (tool.executeStream && this.shouldStream(tool.name)) {
-        const parts: string[] = [];
-        for await (const part of tool.executeStream(args, context)) {
-          this.ui.writeToolOutput(part);
-          parts.push(part);
-        }
-        result = parts.join('');
-      } else {
-        const res = await tool.execute(args, context);
-        if (res.ok) {
-          result = res.content;
-          this.ui.showToolResult(tool.name, result);
-        } else {
-          result = `Error: ${res.error}`;
-          this.ui.showToolError(tool.name, res.error);
-        }
-      }
-    } catch (e) {
-      result = `Error: ${e instanceof Error ? e.message : 'Unknown error'}`;
-      this.ui.showToolError(tool.name, result);
-    }
-
-    const duration = Date.now() - startTime;
-
-    await this.memory.addMessage({
-      role: 'tool',
-      tool_call_id: toolCall.id,
-      content: result.substring(0, 8000),
-    });
-
-    const outcomeType = result.startsWith('Error:') ? 'error' : 'success';
-    await this.memory.recordEpisode(
-      tool.name,
-      `Tool call: ${tool.name} with args ${JSON.stringify(args)}`,
-      result.substring(0, 1000),
-      outcomeType,
-      `Duration: ${duration}ms`
-    );
-
-    return outcomeType === 'success';
   }
 
   private async buildContext(memories: RecalledMemory[]): Promise<Message[]> {
@@ -452,9 +654,6 @@ TOOLS:
 - checkpoint: Create rollback point
 - rollback: Rollback to checkpoint
 - spawn: Spawn subagent (if available)
-
-PLAN MODE:
-When in plan mode, you follow a structured plan with checkpoints.
 
 Be concise but thorough. Use tools proactively. Check state before changes.`;
   }

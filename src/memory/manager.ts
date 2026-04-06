@@ -716,7 +716,7 @@ export class MemoryManager {
   // HELPERS
   // ═══════════════════════════════════════════════════════════
 
-  private async compressOldestMessages(): Promise<void> {
+  async compressOldestMessages(): Promise<void> {
     if (!this.currentSession) return;
 
     // Get oldest 4 non-system messages

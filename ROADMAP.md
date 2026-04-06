@@ -28,11 +28,11 @@
 - [x] `horus doctor` diagnostic command (`src/doctor.ts`)
 - [x] Better tool error messages
 
-### 🔧 In Progress / Needs Polish
-- [ ] Integrate error handler into agent loop
-- [ ] Integrate token manager into memory system
-- [ ] Integrate session persistence into agent
-- [ ] Add compression strategies when tokens exceeded
+### ✅ Completed
+- [x] Integrate error handler into agent loop
+- [x] Integrate token manager into memory system
+- [x] Integrate session persistence into agent
+- [x] Add compression strategies when tokens exceeded
 
 ## 🎯 Phase 2: Developer Experience
 

@@ -1,0 +1,464 @@
+1. Kimi Infrastructure Architecture for Agent Harnesses
+Core Infrastructure Stack
+Kimi's production agent infrastructure (which powers OK Computer, Deep Research, and Agent Swarm) runs on Alibaba Cloud ACS Agent Sandbox. For Horus, you should architect around these patterns:
+Table
+Component	Kimi-Native Approach	Claude-Centric Equivalent
+Sandbox	MicroVM with sub-second startup, hibernation support	Container/Docker (seconds to minutes)
+State Management	Memory-level snapshot checkpoints + hibernation	Persistent volumes or external DB
+Scaling	100K+ concurrent pods with tiered scheduling	Horizontal pod autoscaling (reactive)
+Context Window	256K tokens (enables single-session complex agents)	200K (Claude) / 128K (typical)
+Tool Calls	128 tools per request, 200-300 in Agent mode, 1500+ in Swarm	Typically 10-20 tools
+Hibernation-Wake Architecture
+Kimi uses a unique hibernation-wake up-clone mechanism for long-running agents. Implement this in Horus:
+Python
+Copy
+class KimiSandbox:
+    """Implements ACS-style hibernation for Horus agents"""
+    
+    async def hibernate(self, agent_id: str) -> Checkpoint:
+        """Release CPU/memory but preserve state"""
+        checkpoint = await self.capture_memory_state(agent_id)
+        await self.release_resources(agent_id)  # Cost reduction
+        return checkpoint
+    
+    async def wake(self, checkpoint: Checkpoint) -> AgentInstance:
+        """Sub-second restoration with full state recovery"""
+        instance = await self.provision_microvm(checkpoint.spec)
+        await self.restore_memory_state(instance, checkpoint.memory_snapshot)
+        return instance
+    
+    async def clone_for_exploration(self, checkpoint: Checkpoint, n: int) -> List[AgentInstance]:
+        """MCTS-style parallel exploration - unique to Kimi's RL training"""
+        # Creates n identical instances from checkpoint for parallel rollouts
+        return [await self.wake(checkpoint) for _ in range(n)]
+2. Model-Specific Optimizations (MoE & MLA)
+Mixture-of-Experts Considerations
+Kimi K2.5 uses 1T total/32B active parameters with 384 experts (8 selected per token). This changes agent harness design:
+Python
+Copy
+class MoEOptimizedAgent:
+    """
+    Kimi's MoE architecture means:
+    - First token latency varies by routing
+    - Batch processing is more efficient than single calls
+    - Different caching strategy needed vs dense models
+    """
+    
+    def __init__(self):
+        self.expert_cache = {}  # Route-specific caching
+        
+    async def batch_tool_calls(self, tool_requests: List[ToolCall]):
+        """
+        Batch tool calls to maximize expert utilization.
+        Kimi activates 8/384 experts per token - batching 
+        improves hit rates on hot experts.
+        """
+        # Group by similar context to hit same expert clusters
+        batches = self.cluster_by_semantic_similarity(tool_requests)
+        return await asyncio.gather(*[
+            self.execute_batch(batch) for batch in batches
+        ])
+Multi-head Latent Attention (MLA) Optimization
+Kimi uses MLA which compresses attention into low-dimensional latent vectors. This enables:
+256K context with lower memory overhead than standard attention
+Prefix caching support (critical for agent harnesses)
+Python
+Copy
+class ContextOptimizer:
+    """
+    Leverage Kimi's 256K context and prefix caching
+    """
+    def build_agent_prompt(self, system_prompt: str, tools: List[Tool], context_files: List[str]):
+        """
+        Strategy: Load everything into context once, use prefix caching
+        instead of RAG-style retrieval for tool descriptions
+        """
+        # 256K allows ~40K-50K Chinese chars or full codebases
+        full_context = {
+            "system": system_prompt,
+            "tools": self.serialize_tools(tools),  # Can include 128 tools
+            "context": self.load_files(context_files),  # Entire codebase if needed
+            "persistent_memory": self.load_session_memory()  # Long-horizon state
+        }
+        return full_context
+3. Native Tool Use Implementation
+Kimi's tool use is trained end-to-end with RL, not prompt-engineered. This requires different patterns:
+Tool Registry (Kimi-Optimized)
+Python
+Copy
+from typing import Literal, Dict, Any
+import json
+
+class HorusToolRegistry:
+    """
+    Kimi supports:
+    - 128 tools per request (vs 10-20 typical for Claude)
+    - Nested object parameters (full JSON Schema subset)
+    - Interleaved thinking + tool calls
+    """
+    
+    def __init__(self):
+        self.tools: Dict[str, Any] = {}
+        self._tool_fns: Dict[str, callable] = {}
+    
+    def register(self, name: str, description: str, 
+                 parameters: dict, fn: callable,
+                 thinking_required: bool = False):
+        """
+        Register tool with Kimi-specific optimizations
+        
+        Args:
+            thinking_required: If True, forces Kimi to use Thinking mode
+                              before calling this tool (for complex operations)
+        """
+        self.tools[name] = {
+            "type": "function",
+            "function": {
+                "name": name,  # Must match ^[a-zA-Z_][a-zA-Z0-9-_]{0,63}$
+                "description": description,
+                "parameters": {
+                    "type": "object",
+                    "properties": parameters,
+                    "required": list(parameters.keys())
+                }
+            }
+        }
+        self._tool_fns[name] = fn
+        if thinking_required:
+            self.tools[name]["function"]["x-kimi-thinking"] = "required"
+    
+    async def execute(self, tool_call) -> str:
+        """Execute with Kimi's interleaved thinking support"""
+        fn_name = tool_call.function.name
+        args = json.loads(tool_call.function.arguments)
+        
+        # Kimi supports complex nested parameters natively
+        result = await self._tool_fns[fn_name](**args)
+        return json.dumps(result, ensure_ascii=False)
+Agent Loop with Interleaved Thinking
+Python
+Copy
+class HorusAgentLoop:
+    """
+    Kimi K2.5 supports interleaved thinking and tool calls[^5^]:
+    - reasoning_content: Shows chain-of-thought
+    - content: Final response
+    - Can switch between Instant/Thinking mid-session
+    """
+    
+    async def run(self, user_input: str, tools: List[Tool]):
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+        
+        # Tool-augmented thinking loop
+        while True:
+            response = await self.client.chat.completions.create(
+                model="kimi-k2.5",
+                messages=messages,
+                tools=tools,
+                # Critical: temperature 1.0 for thinking, 0.6 for instant
+                temperature=1.0 if self.mode == "thinking" else 0.6,
+                top_p=0.95,
+                # Enable reasoning_content output
+                extra_body={"thinking": {"type": "enabled"}}
+            )
+            
+            msg = response.choices[0].message
+            
+            # Kimi returns both reasoning and content when thinking
+            if hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+                await self.stream_thinking(msg.reasoning_content)
+            
+            if msg.tool_calls:
+                messages.append({
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [tc.model_dump() for tc in msg.tool_calls]
+                })
+                
+                # Execute all tool calls (Kimi can batch multiple)
+                for tc in msg.tool_calls:
+                    result = await self.tools.execute(tc)
+                    messages.append({
+                        "tool_call_id": tc.id,
+                        "role": "tool",
+                        "name": tc.function.name,
+                        "content": result
+                    })
+            else:
+                return msg.content
+4. Agent Swarm Implementation (PARL)
+Kimi's Agent Swarm uses PARL (Parallel-Agent Reinforcement Learning). This is fundamentally different from Claude-based multi-agent systems:
+Python
+Copy
+class HorusSwarm:
+    """
+    Kimi-native swarm architecture:
+    - Orchestrator creates up to 100 sub-agents
+    - Self-organizing (no pre-defined workflows)
+    - 4.5x speedup through parallel execution
+    - 1500+ tool calls per session
+    """
+    
+    async def deploy_swarm(self, task: str, parallelism: int = 100):
+        """
+        Deploy swarm with Kimi's hibernation-clone architecture
+        """
+        # Create orchestrator (main agent)
+        orchestrator = await self.create_agent(
+            role="orchestrator",
+            system_prompt="You are a swarm orchestrator. Create sub-agents for parallel execution.",
+            tools=["create_subagent", "assign_task", "aggregate_results"]
+        )
+        
+        # Parse task into parallelizable subtasks
+        decomposition = await orchestrator.decompose_task(task, max_subtasks=parallelism)
+        
+        # Hibernation checkpoint for sub-agent template
+        base_checkpoint = await orchestrator.hibernate()
+        
+        # Clone 100 instances from checkpoint (instant, no cold start)
+        sub_agents = await self.sandbox.clone_for_exploration(base_checkpoint, n=len(decomposition))
+        
+        # Execute in parallel with shared message bus
+        results = await asyncio.gather(*[
+            agent.execute(subtask) 
+            for agent, subtask in zip(sub_agents, decomposition.subtasks)
+        ])
+        
+        # Aggregation via orchestrator
+        final = await orchestrator.synthesize_results(results)
+        return final
+5. Memory Architecture (vs Hermes)
+Hermes uses a 4-layer memory system (episodic, semantic, procedural, working). Kimi's 256K context enables a context-native approach:
+Python
+Copy
+class KimiMemoryManager:
+    """
+    Kimi-optimized memory leveraging 256K context:
+    - Keep full session history in context (no retrieval latency)
+    - Use hibernation for long-term persistence
+    - Periodic nudges for skill extraction (similar to Hermes)
+    """
+    
+    def __init__(self, context_budget: int = 200000):  # Reserve 56K for tools/output
+        self.context_budget = context_budget
+        self.session_buffer = []
+        self.skill_library = []
+        
+    async def add_interaction(self, user_msg: str, assistant_msg: str, tools_used: List[str]):
+        entry = f"<interaction user='{user_msg}' tools='{','.join(tools_used)}'>\n{assistant_msg}\n</interaction>"
+        self.session_buffer.append(entry)
+        
+        # If approaching limit, hibernate and start fresh session with summary
+        if self.token_count(self.session_buffer) > self.context_budget * 0.8:
+            await self.hibernate_and_summarize()
+    
+    async def periodic_nudge(self):
+        """
+        Kimi-native skill extraction (inspired by Hermes but optimized for MoE)
+        Trigger: Every 5+ tool calls or on error recovery
+        """
+        prompt = "Review recent interactions. If any workflow is reusable, output as structured skill."
+        skill_json = await self.llm.generate(
+            messages=self.session_buffer[-10:],  # Recent window
+            response_format="json"  # Kimi supports structured output
+        )
+        
+        if self.is_valid_skill(skill_json):
+            self.skill_library.append(skill_json)
+            # Register as available tool for future sessions
+            await self.register_skill_as_tool(skill_json)
+6. Performance & Cost Optimization
+Mode Switching Strategy
+Kimi has four modes. Horus should dynamically switch:
+Python
+Copy
+class AdaptiveModeController:
+    """
+    Optimize cost/latency by switching modes:
+    - Instant: Quick responses, $0.60/M input tokens
+    - Thinking: Complex reasoning, higher latency
+    - Agent: Multi-tool workflows
+    - Swarm: Parallel batch processing
+    """
+    
+    async def route_request(self, user_input: str, complexity_score: float):
+        if complexity_score > 0.8:
+            # Force thinking mode via extra_body
+            return await self.call_kimi(
+                extra_body={"thinking": {"type": "enabled"}},
+                temperature=1.0
+            )
+        elif self.requires_tools(user_input):
+            # Agent mode with tool access
+            return await self.call_kimi(
+                tools=self.get_relevant_tools(user_input),
+                temperature=0.6
+            )
+        else:
+            # Instant mode - fastest, cheapest
+            return await self.call_kimi(
+                extra_body={"thinking": {"type": "disabled"}},
+                temperature=0.6
+            )
+Prefix Caching Implementation
+Cloudflare's implementation shows Kimi supports prefix caching - critical for agent harnesses:
+Python
+Copy
+class PrefixCacheOptimizer:
+    """
+    Minimize TTFT (Time to First Token) by caching system prompts + tools
+    """
+    def __init__(self):
+        self.cache_keys = {}
+    
+    async def create_cached_session(self, system_prompt: str, tools: List[Tool]):
+        """
+        First request establishes cache, subsequent requests with
+        same prefix get discounted pricing + lower latency
+        """
+        # Include session affinity header for cache hits
+        session_id = hash(system_prompt + str(tools))
+        
+        response = await self.client.chat.completions.create(
+            model="kimi-k2.5",
+            messages=[{"role": "system", "content": system_prompt}],
+            tools=tools,
+            extra_headers={"x-session-affinity": f"ses_{session_id}"}
+        )
+        return response
+7. Complete Horus Agent Class
+Here's a starter implementation combining all patterns:
+Python
+Copy
+import asyncio
+from typing import List, Dict, Any, Literal
+from openai import AsyncOpenAI
+
+class HorusAgent:
+    """
+    Kimi-native agent harness optimized for K2.5 MoE architecture.
+    
+    Features:
+    - 128 tool support with automatic batching
+    - Hibernation-based long-horizon state management  
+    - Swarm deployment for parallel execution
+    - Adaptive mode switching (Instant/Thinking/Agent/Swarm)
+    - Prefix caching for reduced latency
+    """
+    
+    def __init__(self, api_key: str):
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://api.moonshot.cn/v1"
+        )
+        self.tools = HorusToolRegistry()
+        self.memory = KimiMemoryManager()
+        self.mode: Literal["instant", "thinking", "agent", "swarm"] = "agent"
+        self.sandbox = KimiSandbox()
+        
+    async def execute(self, task: str, max_steps: int = 50) -> str:
+        """
+        Main execution loop optimized for Kimi's RL-trained tool use
+        """
+        messages = [
+            {"role": "system", "content": self.build_system_prompt()},
+            {"role": "user", "content": task}
+        ]
+        
+        step = 0
+        while step < max_steps:
+            # Determine optimal mode based on context
+            temp = 1.0 if self.mode in ["thinking", "agent"] else 0.6
+            thinking = {"type": "enabled" if self.mode != "instant" else "disabled"}
+            
+            response = await self.client.chat.completions.create(
+                model="kimi-k2.5",
+                messages=messages,
+                tools=list(self.tools.tools.values()),
+                temperature=temp,
+                top_p=0.95,
+                extra_body={"thinking": thinking}
+            )
+            
+            msg = response.choices[0].message
+            
+            # Handle thinking output (Kimi-specific)
+            if hasattr(msg, 'reasoning_content'):
+                await self.handle_reasoning(msg.reasoning_content)
+            
+            if msg.tool_calls:
+                # Execute tool calls and continue loop
+                tool_results = await asyncio.gather(*[
+                    self.tools.execute(tc) for tc in msg.tool_calls
+                ])
+                
+                messages.append({
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [tc.model_dump() for tc in msg.tool_calls]
+                })
+                
+                for tc, result in zip(msg.tool_calls, tool_results):
+                    messages.append({
+                        "tool_call_id": tc.id,
+                        "role": "tool",
+                        "name": tc.function.name,
+                        "content": result
+                    })
+                    
+                # Periodic nudge for skill extraction (every 5 tool calls)
+                if step % 5 == 0:
+                    await self.memory.periodic_nudge()
+            else:
+                # Task complete
+                await self.memory.add_interaction(task, msg.content, [])
+                return msg.content
+            
+            step += 1
+            
+        return "Maximum steps exceeded"
+    
+    async def execute_swarm(self, task: str, sub_agents: int = 10):
+        """Deploy Kimi-native Agent Swarm for parallel execution"""
+        swarm = HorusSwarm(self.client, self.tools)
+        return await swarm.deploy_swarm(task, parallelism=sub_agents)
+    
+    def build_system_prompt(self) -> str:
+        """
+        Kimi-optimized system prompt leveraging native agentic training
+        """
+        return """You are Horus, an autonomous agent running on Kimi K2.5.
+You have access to 128 specialized tools. You can:
+1. Execute multi-step workflows with self-correction
+2. Deploy parallel sub-agents for batch processing
+3. Hibernate and resume long-horizon tasks
+
+When facing complex tasks:
+- First analyze whether to use sequential Agent mode or parallel Swarm mode
+- For multi-domain research, always use Swarm (create domain specialists)
+- Use thinking mode for novel problem decomposition
+- Use instant mode for routine tool calls
+
+You are native to Kimi's MoE architecture and optimized for 256K context."""
+Key Differences from Claude-Centric Harnesses
+Table
+Aspect	Kimi-Native (Horus)	Claude-Centric (Hermes-style)
+Tool Registration	Import-time registration via registry pattern	Runtime discovery
+Tool Limit	128 tools (broadcast available)	~10-20 tools (context limited)
+Multi-Agent	Native Swarm with shared orchestrator	Control-plane gateway (OpenClaw-style)
+State Persistence	Hibernation + memory snapshots	SQLite + file-based (SOUL.md)
+Learning	Online RL with PARL	Offline skill extraction
+Memory	256K context window (keep everything)	RAG + 4-layer cache
+Execution	MicroVM sandbox sub-second start	Container/Docker
+Pricing	$0.60/M input, $2.50/M output	$3-15/M tokens (Claude 3 Opus)
+Resources for Implementation
+Official API Docs: platform.kimi.com/docs/api/tool-use
+K2.5 Model Card: github.com/MoonshotAI/Kimi-K2.5
+Hermes Architecture Reference: hermes-agent.nousresearch.com/docs/developer-guide/architecture (for design patterns to adapt)
+Alibaba Cloud ACS Pattern: Deep dive on hibernation/cloning for RL
+The key insight for Horus: Kimi is trained end-to-end for agentic behavior, so avoid the "prompt engineering tax" that Claude-based harnesses pay. Leverage the 128-tool limit, native swarm coordination, and 256K context to build something that feels truly native to the MoE architecture.
+

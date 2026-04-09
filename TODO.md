@@ -1,156 +1,169 @@
 # Horus Development Roadmap
 
-> Last updated: 2026-04-08
+> Last updated: 2026-04-09
 
-## 🎯 Current Sprint: Claude Code Architecture Adoption
+## 🎯 Current Focus: Kimi-Native Architecture
 
-### ✅ Completed (High Priority)
+Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique capabilities rather than copying Claude-centric patterns.
 
-- [x] **Tool Concurrency Classification**
-  - [x] Classify tools as READ_ONLY vs WRITE vs BLOCKING
-  - [x] Run READ_ONLY tools in parallel (up to 10)
-  - [x] Run WRITE tools serially
-  - [x] Implement tool orchestration layer
-  - [x] Add result budgeting (truncate large outputs)
-  - [x] Add tests
-  - Files: `src/tools/orchestrator.ts`, `src/__tests__/tool-orchestrator.test.ts`
+---
 
-- [x] **System Prompt Caching**
-  - [x] Split system prompt into static/dynamic sections
-  - [x] Add SYSTEM_PROMPT_DYNAMIC_BOUNDARY marker
-  - [x] Keep static content stable for API caching
-  - [x] Move dynamic context to user message with <system-reminder> tags
-  - [x] Add prompt cache manager
-  - [x] Add tests
-  - Files: `src/prompt-cacher.ts`, `src/__tests__/prompt-cacher.test.ts`
+## 🚀 Phase 1: Kimi-Native Core (Active)
 
-- [x] **Streaming Tool Executor**
-  - [x] Parse tool calls incrementally during streaming
-  - [x] Start tool execution mid-stream (before model finishes)
-  - [x] Queue tools for parallel/serial execution
-  - [x] Handle sibling abort (fail fast on parallel tool errors)
-  - [x] Handle streaming fallback to non-streaming
-  - [x] Add idle timeout watchdog
-  - [x] Add tests
-  - Files: `src/streaming-executor.ts`, `src/__tests__/streaming-executor.test.ts`
+### 🔥 High Priority (Next Up)
 
-### 🔥 High Priority (Next)
+- [ ] **Four-Mode System** (`--mode` CLI flag)
+  - [ ] `instant` mode: temp=0.6, thinking=disabled - quick responses, $0.60/M
+  - [ ] `thinking` mode: temp=1.0, thinking=enabled - complex reasoning
+  - [ ] `agent` mode: temp=1.0, tools enabled - multi-tool workflows (default)
+  - [ ] `swarm` mode: parallel sub-agents - batch processing
+  - Files: `src/mode-controller.ts`, update `src/cli-enhanced.ts`
 
-- [ ] **Integrate new features into Agent Loop**
-  - [x] Pre-integration architecture review
-    - Verified `ToolResult` discriminated union compatibility
-    - Confirmed `Map<string, Tool>` registry compatibility
-    - Validated `StreamingToolExecutor.processStream()` API
-    - Created `src/agent-integration.ts` as integration layer
-  - [ ] Replace existing tool execution with orchestrator
-  - [ ] Add prompt caching to system prompt generation
-  - [ ] Enable streaming tool executor
-  - [ ] Benchmark performance improvements
-  - Target: 2-5x speedup on multi-tool turns, 80% cache hit rate
+- [ ] **Interleaved Thinking Display**
+  - [ ] Capture `reasoning_content` separately from `content`
+  - [ ] Stream reasoning in gray/dim text (optional --show-thinking flag)
+  - [ ] Store reasoning in memory for context
+  - Files: `src/kimi.ts`, `src/agent-enhanced.ts`, `src/ui/terminal.ts`
 
-#### Integration Plan (from agent-integration.ts)
+- [ ] **Expand Tool Registry (128 Tool Support)**
+  - [ ] Register all available tools (we have ~8, can add 50-100 more)
+  - [ ] Add `x-kimi-thinking: "required"` metadata for complex tools
+  - [ ] Group tools by category (file, search, git, deploy, etc.)
+  - [ ] New tools to add: `grep`, `find`, `git_status`, `git_diff`, `npm_install`, etc.
+  - Files: `src/tools/registry.ts`, `src/tools/index.ts`
 
-**Prompt Cacher Integration** (`src/agent-enhanced.ts` lines 573-582):
-```typescript
-// Replace getSystemPrompt() with PromptCacheManager
-const cacher = new PromptCacheManager();
-cacher.addStaticSection(coreIdentity, 100);
-cacher.setVolatileComputer(() => formatMemories(memories));
-const { full: systemPrompt } = cacher.buildPrompt();
-```
+- [ ] **Prefix Caching Optimization**
+  - [ ] Add `x-session-affinity` header for cache hits
+  - [ ] Keep system prompt + tools stable across requests
+  - [ ] Measure cache hit rates
+  - Files: `src/kimi.ts`
 
-**Streaming Executor Integration** (`src/agent-enhanced.ts` lines 276-295):
-```typescript
-// Replace sequential executeToolCallWithRecovery() with streaming
-const { assistantContent, toolResults, shouldContinue } = 
-  await runStreamingStep(config, messages, toolDefinitions);
-```
+### ✅ Recently Completed
 
-**Key Compatibility Verified**:
-- ✅ `Tool` interface matches (name, description, parameters, execute)
-- ✅ `ToolResult` structure matches `{ok, content}` / `{ok, error}`
-- ✅ `ToolCall` from kimi.ts has `{id, type, function: {name, arguments}}`
-- ✅ `StreamingToolExecutor.processStream()` yields compatible `StreamEvent`
-- ✅ Error recovery preserved via `executeToolWithRecovery()` wrapper
+- [x] **Basic Chat Working**
+  - [x] SSE parsing fixed (data: vs data: )
+  - [x] AI responds to messages
+  - [x] Session management
 
-### 🚀 Medium Priority (Backlog)
+- [x] **Tool Execution Working**
+  - [x] ReAct loop functional
+  - [x] view, edit, bash, search tools work
+  - [x] Tool results feed back to AI
+  - [x] Error handling allows recovery
 
-- [ ] **Four-Phase Compaction Hierarchy**
-  - Phase 1: Microcompact (every turn, cached tool results)
-  - Phase 2: Snip (truncate old messages)
-  - Phase 3: Auto-compact (summarize with model)
-  - Phase 4: Context collapse (staged compression)
-  - Implement "protected tail" concept
+---
 
-- [ ] **Enhanced Retry System**
-  - Specific recovery for each HTTP error code
-  - 429: Respect Retry-After, exponential backoff
-  - 529: Track consecutive, fallback model
-  - 400: Context overflow handling
-  - Network errors: Disable keep-alive, reconnect
+## 🚀 Phase 2: Advanced Kimi Features
 
-- [ ] **.horusrc Hierarchy**
-  - /etc/horus/horusrc (enterprise)
-  - .horus/horusrc (project)
-  - ~/.horus/horusrc (user)
-  - .horusrc.local (local, gitignored)
-  - @include directive for composition
+### Medium Priority
 
-### 💡 Low Priority (Icebox)
+- [ ] **256K Context Optimization**
+  - [ ] Load entire codebase into context (skip RAG for small projects)
+  - [ ] Context budget manager (reserve 56K for output)
+  - [ ] Auto-detect when to use full context vs selective loading
+  - [ ] Files: `src/context-loader.ts`
 
-- [ ] **7-Stage Permission System**
-- [ ] **Skills System**
-- [ ] **UI Improvements**
-- [ ] **Multi-model support**
+- [ ] **Tool Call Batching (MoE Optimization)**
+  - [ ] Batch parallel tool calls to maximize expert utilization
+  - [ ] Group by semantic similarity for expert clustering
+  - [ ] Files: `src/tools/batcher.ts`
+
+- [ ] **Hibernation Architecture**
+  - [ ] Checkpoint agent state (memory + context)
+  - [ ] Resume from hibernation
+  - [ ] Clone for exploration (MCTS-style parallel rollouts)
+  - [ ] Files: `src/hibernation.ts`
+
+- [ ] **Agent Swarm (PARL)**
+  - [ ] Orchestrator + sub-agent pattern
+  - [ ] Self-organizing (no pre-defined workflows)
+  - [ ] Parallel execution with shared message bus
+  - [ ] Files: `src/swarm/orchestrator.ts`, `src/swarm/subagent.ts`
+
+---
+
+## 🚀 Phase 3: Claude Code Integration (Paused)
+
+These features were designed for Claude but may not be optimal for Kimi. Re-evaluate after Phase 1.
+
+### On Hold
+
+- [ ] ~~Tool Concurrency Classification~~ - Kimi handles this natively
+- [ ] ~~System Prompt Caching~~ - Use prefix caching instead
+- [ ] ~~Streaming Tool Executor~~ - Kimi's RL training handles this
+- [ ] ~~Four-Phase Compaction~~ - 256K context reduces need
+
+---
+
+## 🚀 Phase 4: Developer Experience
+
+### Medium Priority
+
+- [ ] **Configuration**
+  - [ ] `.horusrc` hierarchy (project, user, global)
+  - [ ] Mode-specific settings
+  - [ ] Tool enable/disable per project
+
+- [ ] **Observability**
+  - [ ] Token usage tracking
+  - [ ] Cost estimation
+  - [ ] Cache hit rate metrics
+  - [ ] Performance profiling
+
+- [ ] **Checkpoint System**
+  - [ ] Git-based checkpoints
+  - [ ] Rollback UI
+  - [ ] Checkpoint on edit operations
 
 ---
 
 ## 📊 Current Status
 
-| Metric | Value |
-|--------|-------|
-| Lines of Code | ~5,800 |
-| Test Suites | 6 |
-| Tests Passing | 28 |
-| Build Time | ~85ms |
-| Bundle Size | 3.1 MB |
-| Integration Layer | `src/agent-integration.ts` (new) |
+| Metric | Value | Target |
+|--------|-------|--------|
+| Lines of Code | ~6,000 | - |
+| Tests Passing | 28 | 50+ |
+| Build Time | ~100ms | <100ms |
+| Bundle Size | 3.1 MB | <5 MB |
+| Tools Registered | 8 | 50+ |
+| Context Window | 256K | Fully utilized |
+| Modes Supported | 0 | 4 |
 
 ---
 
 ## 📝 Recent Changes
 
-### 2026-04-08: Kimi API Connection + US Endpoint Fix
-- Fixed TypeScript type in `kimi.ts` complete() method
-- Added `src/__tests__/kimi.test.ts` with 10 API client tests
-- Created `scripts/test-kimi-api.ts` for manual connection testing
-- **Changed default baseUrl to US endpoint**: `https://api.moonshot.ai/v1`
-- Added region selector in `horus configure` wizard (us/cn)
-- Updated `showConfiguration` to display current endpoint
-- All 39 tests passing
-- Kimi API client ready for production use
+### 2026-04-09: Chat + Tool Execution Working
+- Fixed SSE parsing bug (data: vs data: )
+- Fixed reasoning_content requirement for tool calls
+- Fixed duplicate assistant message bug
+- Fixed tool error handling to continue conversation
+- AI can now use tools and chain tool calls
 
-### 2026-04-08: Integration Architecture Review
-- Created `src/agent-integration.ts` as bridge layer
-- Verified type compatibility between new and existing components
-- Documented integration points in agent-enhanced.ts
-- All type checks pass, all 17 component tests passing
-
-### 2026-04-08: Claude Code Architecture Features
-- Implemented tool concurrency classification (read-only parallel, write serial)
-- Implemented system prompt caching with dynamic boundary
-- Implemented streaming tool executor with mid-stream execution
-- Added 15 new tests for the above features
-
-### 2026-04-08: Type System Fixes
-- Fixed ToolResult discriminated union type usage
-- Fixed all TypeScript errors in new modules
-- Removed require() imports from logger, crypto
+### 2026-04-08: Kimi Infrastructure Research
+- Reviewed Kimi's native agent infrastructure
+- Identified key differentiators from Claude-centric harnesses
+- 128 tools vs 10-20, 256K context, hibernation, MoE optimization
 
 ---
 
-## 🔗 Related Resources
+## 🔗 Key Resources
 
-- [Claude Code Architecture Analysis](./output.txt) - Full PDF text extraction
-- [Memory v2.0 Spec](./MEMORY_V2_INTEGRATION.md)
-- [Issues Breakdown](./ISSUES_BREAKDOWN.md)
+- [Kimi Infrastructure Reference](./kimi%20infrastructure%20reference.txt) - Kimi's native patterns
+- [HANDOFF.md](./HANDOFF.md) - Project overview
+- [START_HERE.md](./START_HERE.md) - Quick start
+
+---
+
+## 🎯 Next Immediate Task
+
+**Implement Four-Mode System**
+
+```bash
+horus chat --mode instant    # Quick responses, cheapest
+horus chat --mode thinking   # Complex reasoning
+horus chat --mode agent      # Multi-tool (default)
+horus chat --mode swarm      # Parallel batch processing
+```
+
+This enables cost optimization and leverages Kimi's native training for different modes.

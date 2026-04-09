@@ -12,12 +12,12 @@ Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique ca
 
 ### 🔥 High Priority (Next Up)
 
-- [ ] **Four-Mode System** (`--mode` CLI flag)
-  - [ ] `instant` mode: temp=0.6, thinking=disabled - quick responses, $0.60/M
-  - [ ] `thinking` mode: temp=1.0, thinking=enabled - complex reasoning
-  - [ ] `agent` mode: temp=1.0, tools enabled - multi-tool workflows (default)
-  - [ ] `swarm` mode: parallel sub-agents - batch processing
-  - Files: `src/mode-controller.ts`, update `src/cli-enhanced.ts`
+- [x] **Four-Mode System** (`--mode` CLI flag) ✅
+  - [x] `instant` mode: temp=0.6, thinking=disabled - quick responses, $0.60/M
+  - [x] `thinking` mode: temp=1.0, thinking=enabled - complex reasoning
+  - [x] `agent` mode: temp=1.0, tools enabled - multi-tool workflows (default)
+  - [x] `swarm` mode: parallel sub-agents - batch processing
+  - Files: `src/mode-controller.ts`, `src/cli-enhanced.ts`
 
 - [ ] **Interleaved Thinking Display**
   - [ ] Capture `reasoning_content` separately from `content`

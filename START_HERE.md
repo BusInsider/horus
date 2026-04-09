@@ -6,30 +6,45 @@
 - **Tool Execution**: ✅ Working - view, edit, bash, search tools all functional
 - **Streaming**: ✅ Working - real-time response streaming
 - **Memory**: ✅ Working - conversation history persists
+- **Four Modes**: ✅ Working - instant/thinking/agent/swarm modes
 
-## Recent Fixes
+## Using Horus
 
-### 1. SSE Parsing Bug (Chat)
-**Issue**: Kimi API sends `data:{...}` without space after colon, but code expected `data: {...}` with space.
-
-**Fix**: Changed parsing in `kimi.ts` line ~149:
-```typescript
-// OLD:
-if (!trimmed.startsWith('data: ')) continue;
-const data = trimmed.slice(6);
-
-// NEW:
-if (!trimmed.startsWith('data:')) continue;
-const data = trimmed.slice(5).trimStart();
+### Basic Chat
+```bash
+horus chat                    # Default agent mode with tools
+horus chat --mode instant     # Quick responses, no tools, cheapest
+horus chat --mode thinking    # Complex reasoning, no tools
+horus chat --mode agent       # Multi-tool workflows (default)
+horus chat --mode swarm       # Parallel sub-agents
 ```
 
-### 2. Tool Execution Flow
-**Issue**: Tool execution wasn't completing the ReAct loop properly.
+### Testing Tool Execution
+```bash
+# Test basic chat
+horus chat --mode instant
+> What is 2+2?
 
-**Fixes**:
-- Added `doneHandled` flag to prevent duplicate assistant messages
-- Added `reasoningContent` field to assistant messages with tool_calls (Kimi requirement)
-- Changed tool error handling to continue conversation loop instead of stopping
+# Test tool execution
+horus chat --mode agent
+> List the files in the current directory
+
+# Test file creation  
+horus chat --mode agent
+> Create a file called test.txt with "Hello World"
+```
+
+### Available Modes
+```bash
+horus modes    # Show all modes and their descriptions
+```
+
+| Mode | Temp | Tools | Use Case | Cost |
+|------|------|-------|----------|------|
+| **instant** | 0.6 | No | Quick Q&A, simple tasks | $0.60/M |
+| **thinking** | 1.0 | No | Complex reasoning, analysis | $0.60/M |
+| **agent** | 1.0 | Yes | File ops, code editing (default) | $0.60/M |
+| **swarm** | 1.0 | Yes | Parallel batch processing | Varies |
 
 ## Environment Setup
 ```bash
@@ -47,21 +62,11 @@ horus chat
 ## Key Files
 | File | Purpose |
 |------|---------|
+| `src/mode-controller.ts` | Four-mode system (instant/thinking/agent/swarm) |
 | `src/agent-enhanced.ts` | Main agent logic - chat loop, step(), tool execution |
 | `src/kimi.ts` | API client - streaming, tool call parsing |
 | `src/memory/manager.ts` | SQLite persistence - messages, context |
 | `src/tools/*.ts` | Tool implementations (view, edit, bash, search) |
-
-## Testing Tool Execution
-```bash
-# Test basic chat
-horus chat
-> List the files in the current directory
-
-# Test file creation  
-horus chat
-> Create a file called test.txt with "Hello World"
-```
 
 ## API Details
 - **Endpoint**: `https://api.kimi.com/coding/v1`

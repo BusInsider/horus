@@ -19,10 +19,10 @@ Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique ca
   - [x] `swarm` mode: parallel sub-agents - batch processing
   - Files: `src/mode-controller.ts`, `src/cli-enhanced.ts`
 
-- [ ] **Interleaved Thinking Display**
-  - [ ] Capture `reasoning_content` separately from `content`
-  - [ ] Stream reasoning in gray/dim text (optional --show-thinking flag)
-  - [ ] Store reasoning in memory for context
+- [x] **Interleaved Thinking Display** ✅
+  - [x] Capture `reasoning_content` separately from `content`
+  - [x] Stream reasoning in gray/dim text (--show-thinking flag)
+  - [x] Store reasoning in memory for context
   - Files: `src/kimi.ts`, `src/agent-enhanced.ts`, `src/ui/terminal.ts`
 
 - [x] **Expand Tool Registry (128 Tool Support)** ✅ Phase 1
@@ -55,11 +55,12 @@ Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique ca
 
 ### Medium Priority
 
-- [ ] **256K Context Optimization**
-  - [ ] Load entire codebase into context (skip RAG for small projects)
-  - [ ] Context budget manager (reserve 56K for output)
-  - [ ] Auto-detect when to use full context vs selective loading
-  - [ ] Files: `src/context-loader.ts`
+- [x] **256K Context Optimization** ✅
+  - [x] ContextLoader loads entire codebase for small projects
+  - [x] Auto-detects if project fits within 200K token budget
+  - [x] Prioritizes config files, loads code in priority order
+  - [x] Shows loading progress and token estimates
+  - Files: `src/context-loader.ts`
 
 - [ ] **Tool Call Batching (MoE Optimization)**
   - [ ] Batch parallel tool calls to maximize expert utilization
@@ -108,10 +109,11 @@ These features were designed for Claude but may not be optimal for Kimi. Re-eval
   - [ ] Cache hit rate metrics
   - [ ] Performance profiling
 
-- [ ] **Checkpoint System**
-  - [ ] Git-based checkpoints
-  - [ ] Rollback UI
-  - [ ] Checkpoint on edit operations
+- [x] **Checkpoint System** ✅
+  - [x] Git-based checkpoints
+  - [x] File snapshots for non-git projects
+  - [x] Rollback functionality
+  - [x] `/checkpoint` slash command in chat
 
 ---
 

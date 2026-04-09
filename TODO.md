@@ -2,118 +2,122 @@
 
 > Last updated: 2026-04-09
 
-## 🎯 Current Focus: Kimi-Native Architecture
-
-Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique capabilities rather than copying Claude-centric patterns.
-
 ---
 
-## 🚀 Phase 1: Kimi-Native Core (Active)
+## 🎯 Phase 1.5: Cleanup & Hardening (ACTIVE)
 
-### 🔥 High Priority (Next Up)
+### Post-Audit Findings
 
-- [x] **Four-Mode System** (`--mode` CLI flag) ✅
-  - [x] `instant` mode: temp=0.6, thinking=disabled - quick responses, $0.60/M
-  - [x] `thinking` mode: temp=1.0, thinking=enabled - complex reasoning
-  - [x] `agent` mode: temp=1.0, tools enabled - multi-tool workflows (default)
-  - [x] `swarm` mode: parallel sub-agents - batch processing
-  - Files: `src/mode-controller.ts`, `src/cli-enhanced.ts`
+**Audit completed:** See `AUDIT_REPORT.md`
 
-- [x] **Interleaved Thinking Display** ✅
-  - [x] Capture `reasoning_content` separately from `content`
-  - [x] Stream reasoning in gray/dim text (--show-thinking flag)
-  - [x] Store reasoning in memory for context
-  - Files: `src/kimi.ts`, `src/agent-enhanced.ts`, `src/ui/terminal.ts`
+### 🔥 High Priority (Fix Before Phase 2)
 
-- [x] **Expand Tool Registry (128 Tool Support)** ✅ Phase 1
-  - [x] Expanded from 8 to 20 tools
-  - [x] New tools: cat, ls, mkdir, rm, grep, git_status, git_diff, git_log, fetch, json_parse, json_format, math
-  - [ ] Phase 2: Add more specialized tools (docker, npm, python, etc.)
-  - Files: `src/tools/*.ts`
+- [ ] **Security Hardening**
+  - [ ] Add input sanitization for grep patterns (regex DOS protection)
+  - [ ] Add rate limiting for API calls
+  - [ ] Add confirmation prompts for destructive operations (rm, edit)
+  - [ ] Validate all file paths are within cwd
+  - Files: `src/tools/*.ts`, `src/agent-enhanced.ts`
 
-- [x] **Prefix Caching Optimization** ✅
-  - [x] Added `X-Session-Id` header for cache affinity
-  - [x] Session ID stays consistent across requests
-  - Files: `src/kimi.ts`
+- [ ] **Code Cleanup**
+  - [ ] Remove unused imports (~40 instances across codebase)
+  - [ ] Delete `src/memory/v2/` (not integrated, not used)
+  - [ ] Consolidate `src/agent.ts` into `src/agent-enhanced.ts`
+  - [ ] Remove dead code from unused features
+  - Files: Multiple
 
-### ✅ Recently Completed
+- [ ] **Error Handling**
+  - [ ] Add comprehensive error boundaries
+  - [ ] Implement structured logging system
+  - [ ] Add graceful degradation for API failures
+  - Files: `src/error-handler.ts`, `src/utils/logger.ts`
 
-- [x] **Basic Chat Working**
-  - [x] SSE parsing fixed (data: vs data: )
-  - [x] AI responds to messages
-  - [x] Session management
-
-- [x] **Tool Execution Working**
-  - [x] ReAct loop functional
-  - [x] view, edit, bash, search tools work
-  - [x] Tool results feed back to AI
-  - [x] Error handling allows recovery
-
----
-
-## 🚀 Phase 2: Advanced Kimi Features
+- [ ] **Testing**
+  - [ ] Add integration tests for new tools (math, git, fetch, etc.)
+  - [ ] Add mode switching tests
+  - [ ] Add context loading tests
+  - Target: 90%+ coverage
 
 ### Medium Priority
 
-- [x] **256K Context Optimization** ✅
-  - [x] ContextLoader loads entire codebase for small projects
-  - [x] Auto-detects if project fits within 200K token budget
-  - [x] Prioritizes config files, loads code in priority order
-  - [x] Shows loading progress and token estimates
-  - Files: `src/context-loader.ts`
+- [ ] **Documentation**
+  - [ ] Document all 20 tools with examples
+  - [ ] Add troubleshooting guide
+  - [ ] Document Kimi-native features
+
+---
+
+## ✅ Phase 1: Kimi-Native Core (COMPLETE)
+
+### Completed Features
+
+- [x] **Four-Mode System** - instant/thinking/agent/swarm
+- [x] **Interleaved Thinking Display** - --show-thinking flag
+- [x] **Tool Registry** - 20 tools (expanded from 8)
+- [x] **Prefix Caching** - Session ID for cache affinity
+- [x] **256K Context** - Auto-load small projects
+- [x] **Checkpoint System** - Git + snapshot rollback
+
+### Audit Results
+- Build: ✅ Passing
+- TypeCheck: ✅ 95% clean
+- Doctor: ✅ 20/20 checks pass
+- Security: ✅ No critical issues
+- Performance: ✅ Sub-second startup
+
+---
+
+## 🚀 Phase 2: Advanced Kimi Features (Pending Cleanup)
+
+### 🔥 High Priority
 
 - [ ] **Tool Call Batching (MoE Optimization)**
-  - [ ] Batch parallel tool calls to maximize expert utilization
+  - [ ] Batch parallel tool calls
   - [ ] Group by semantic similarity for expert clustering
-  - [ ] Files: `src/tools/batcher.ts`
+  - [ ] Implement result aggregation
+  - Files: `src/tools/batcher.ts`
 
 - [ ] **Hibernation Architecture**
   - [ ] Checkpoint agent state (memory + context)
   - [ ] Resume from hibernation
-  - [ ] Clone for exploration (MCTS-style parallel rollouts)
-  - [ ] Files: `src/hibernation.ts`
+  - [ ] Clone for MCTS-style exploration
+  - Files: `src/hibernation.ts`
 
 - [ ] **Agent Swarm (PARL)**
   - [ ] Orchestrator + sub-agent pattern
-  - [ ] Self-organizing (no pre-defined workflows)
-  - [ ] Parallel execution with shared message bus
-  - [ ] Files: `src/swarm/orchestrator.ts`, `src/swarm/subagent.ts`
-
----
-
-## 🚀 Phase 3: Claude Code Integration (Paused)
-
-These features were designed for Claude but may not be optimal for Kimi. Re-evaluate after Phase 1.
-
-### On Hold
-
-- [ ] ~~Tool Concurrency Classification~~ - Kimi handles this natively
-- [ ] ~~System Prompt Caching~~ - Use prefix caching instead
-- [ ] ~~Streaming Tool Executor~~ - Kimi's RL training handles this
-- [ ] ~~Four-Phase Compaction~~ - 256K context reduces need
-
----
-
-## 🚀 Phase 4: Developer Experience
+  - [ ] Self-organizing parallel execution
+  - [ ] Shared message bus
+  - Files: `src/swarm/orchestrator.ts`, `src/swarm/subagent.ts`
 
 ### Medium Priority
 
-- [ ] **Configuration**
+- [ ] **More Tools**
+  - [ ] Docker tools (docker_ps, docker_logs, docker_exec)
+  - [ ] Package managers (npm, pip, cargo)
+  - [ ] Database tools (sqlite query)
+  - [ ] AWS/GCP/Azure CLI wrappers
+  - Target: 50+ tools total
+
+---
+
+## 🚀 Phase 3: Developer Experience
+
+### Medium Priority
+
+- [ ] **Configuration System**
   - [ ] `.horusrc` hierarchy (project, user, global)
   - [ ] Mode-specific settings
   - [ ] Tool enable/disable per project
 
 - [ ] **Observability**
   - [ ] Token usage tracking
-  - [ ] Cost estimation
-  - [ ] Cache hit rate metrics
-  - [ ] Performance profiling
+  - [ ] Cost estimation dashboard
+  - [ ] Performance metrics
+  - [ ] Cache hit rate monitoring
 
-- [x] **Checkpoint System** ✅
-  - [x] Git-based checkpoints
-  - [x] File snapshots for non-git projects
-  - [x] Rollback functionality
-  - [x] `/checkpoint` slash command in chat
+- [ ] **Editor Integration**
+  - [ ] VS Code extension
+  - [ ] File watcher for auto-reindex
 
 ---
 
@@ -121,49 +125,28 @@ These features were designed for Claude but may not be optimal for Kimi. Re-eval
 
 | Metric | Value | Target |
 |--------|-------|--------|
-| Lines of Code | ~6,000 | - |
-| Tests Passing | 28 | 50+ |
-| Build Time | ~100ms | <100ms |
+| Build | ✅ Passing | - |
+| Type Coverage | ~90% | 95% |
+| Test Pass Rate | 28/28 | 50+ |
+| Tools | 20 | 50+ |
+| Lines of Code | ~6,500 | <10K |
 | Bundle Size | 3.1 MB | <5 MB |
-| Tools Registered | 8 | 50+ |
-| Context Window | 256K | Fully utilized |
-| Modes Supported | 0 | 4 |
 
 ---
 
 ## 📝 Recent Changes
 
-### 2026-04-09: Chat + Tool Execution Working
-- Fixed SSE parsing bug (data: vs data: )
-- Fixed reasoning_content requirement for tool calls
-- Fixed duplicate assistant message bug
-- Fixed tool error handling to continue conversation
-- AI can now use tools and chain tool calls
-
-### 2026-04-08: Kimi Infrastructure Research
-- Reviewed Kimi's native agent infrastructure
-- Identified key differentiators from Claude-centric harnesses
-- 128 tools vs 10-20, 256K context, hibernation, MoE optimization
+### 2026-04-09: Phase 1 Complete + Audit
+- Completed all Phase 1 features
+- Fixed TypeScript errors from audit
+- Security audit passed
+- Performance tests passed
+- Created AUDIT_REPORT.md
 
 ---
 
-## 🔗 Key Resources
+## 🔗 Resources
 
-- [Kimi Infrastructure Reference](./kimi%20infrastructure%20reference.txt) - Kimi's native patterns
-- [HANDOFF.md](./HANDOFF.md) - Project overview
-- [START_HERE.md](./START_HERE.md) - Quick start
-
----
-
-## 🎯 Next Immediate Task
-
-**Implement Four-Mode System**
-
-```bash
-horus chat --mode instant    # Quick responses, cheapest
-horus chat --mode thinking   # Complex reasoning
-horus chat --mode agent      # Multi-tool (default)
-horus chat --mode swarm      # Parallel batch processing
-```
-
-This enables cost optimization and leverages Kimi's native training for different modes.
+- [Audit Report](./AUDIT_REPORT.md)
+- [Kimi Infrastructure Reference](./kimi%20infrastructure%20reference.txt)
+- [Handoff Doc](./HANDOFF.md)

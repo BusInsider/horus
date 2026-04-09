@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS messages (
   session_id TEXT NOT NULL,
   role TEXT NOT NULL,
   content TEXT,
+  reasoning_content TEXT,  -- Kimi-specific: thinking/reasoning content
   tool_calls TEXT,
   tool_call_id TEXT,
   created_at INTEGER NOT NULL,
@@ -179,6 +180,7 @@ export interface Message {
   sessionId: string;
   role: 'system' | 'user' | 'assistant' | 'tool';
   content?: string;
+  reasoningContent?: string;  // Kimi-specific: thinking/reasoning content
   toolCalls?: string;
   toolCallId?: string;
   createdAt: number;

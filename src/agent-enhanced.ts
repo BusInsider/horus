@@ -400,10 +400,12 @@ export class EnhancedAgent {
 
     // STREAM
     const chunks: string[] = [];
+    const reasoningChunks: string[] = [];
     const toolCalls: ToolCall[] = [];
 
     console.log(chalk.gray(`[Calling API with ${contextMessages.length} messages...]`));
 
+    let doneHandled = false;
     try {
       for await (const chunk of this.kimi.stream(contextMessages, toolDefinitions)) {
         switch (chunk.type) {
@@ -420,14 +422,18 @@ export class EnhancedAgent {
             break;
 
           case 'done':
-            if (chunks.length > 0) {
-              await this.memory.addMessage({
-                role: 'assistant',
-                content: chunks.join(''),
-                toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
-              });
-            } else {
-              console.log(chalk.yellow('[No content received from API]'));
+            if (!doneHandled) {
+              doneHandled = true;
+              if (chunks.length > 0 || toolCalls.length > 0) {
+                await this.memory.addMessage({
+                  role: 'assistant',
+                  content: chunks.join(''),
+                  toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
+                  reasoningContent: toolCalls.length > 0 ? '[Thinking about tool usage...]' : undefined,  // Kimi requires this with tool_calls
+                });
+              } else {
+                console.log(chalk.yellow('[No content received from API]'));
+              }
             }
             break;
 
@@ -447,16 +453,15 @@ export class EnhancedAgent {
     }
 
     for (const toolCall of toolCalls) {
-      const result = await this.executeToolCallWithRecovery(toolCall);
+      await this.executeToolCallWithRecovery(toolCall);
       
       // Auto-checkpoint on edit operations
       if (toolCall.function.name === 'edit' && this.autoCheckpoint) {
         await this.checkpointManager!.create(`After ${toolCall.function.name}`, this.memory.getCurrentSession()!.id);
       }
-
-      if (!result) return false;
     }
 
+    // Continue the conversation loop so AI can see tool results/errors
     return true;
   }
 
@@ -498,7 +503,7 @@ export class EnhancedAgent {
     }
   }
 
-  private async executeToolCallWithRecovery(toolCall: ToolCall): Promise<boolean> {
+  private async executeToolCallWithRecovery(toolCall: ToolCall): Promise<void> {
     const tool = this.tools.get(toolCall.function.name);
     if (!tool) {
       this.ui.error(`Unknown tool: ${toolCall.function.name}`);
@@ -507,7 +512,7 @@ export class EnhancedAgent {
         toolCallId: toolCall.id,
         content: `Error: Unknown tool "${toolCall.function.name}"`,
       });
-      return false;
+      return;
     }
 
     let args: Record<string, unknown>;
@@ -562,8 +567,6 @@ export class EnhancedAgent {
         `Duration: ${duration}ms`
       );
 
-      return outcomeType === 'success';
-
     } catch (error) {
       const recovery = await this.errorHandler.handle(error as Error, {
         operation: 'executeToolCall',
@@ -583,8 +586,6 @@ export class EnhancedAgent {
         toolCallId: toolCall.id,
         content: `Error: ${errorMessage}`,
       });
-
-      return false;
     }
   }
 
@@ -672,6 +673,7 @@ Return JSON:
       messages.push({
         role: msg.role,
         content: msg.content,
+        reasoning_content: msg.reasoningContent,
         tool_calls: msg.toolCalls ? JSON.parse(msg.toolCalls) : undefined,
         tool_call_id: msg.toolCallId,
       });

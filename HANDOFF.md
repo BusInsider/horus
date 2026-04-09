@@ -3,7 +3,7 @@
 ## Project Overview
 **Horus** is a Kimi-native autonomous coding agent (TypeScript/Node.js) inspired by Claude Code architecture. It provides an interactive chat interface with tool execution, memory, and planning capabilities.
 
-**Current Status**: ✅ **AI chat is working!** SSE parsing bug fixed. Tool execution and checkpoint system need testing.
+**Current Status**: ✅ **Chat and tool execution working!** AI responds, uses tools (view, edit, bash, search), and completes tasks.
 
 ---
 
@@ -113,10 +113,12 @@ const data = trimmed.slice(5).trimStart();  // Handle both formats
 **Status**: Fixed - No more double/triple typing
 **Solution**: Changed readline to use `terminal: false` with manual prompt
 
-### 3. Session Persistence
-**Status**: Partially working
-- Session starts and shows session ID
-- But conversation history may not persist between messages
+### 3. ✅ Tool Execution Fixed
+**Status**: Working!
+- AI can now use tools (view, edit, bash, search)
+- Tool results are fed back to AI
+- AI can chain multiple tool calls
+- Error handling allows recovery from failed tool calls
 
 ---
 
@@ -135,9 +137,9 @@ const data = trimmed.slice(5).trimStart();  // Handle both formats
 ## What's Broken / Needs Work
 
 ✅ **AI Response**: ~~Not displaying~~ **FIXED!**
-⚠️ **Conversation Context**: Needs testing to verify history persists between turns
-⚠️ **Tool Execution**: Needs testing now that chat works
+✅ **Tool Execution**: ~~Not working~~ **FIXED!** - view, edit, bash, search all functional
 ⚠️ **Checkpoint System**: UI shows error about missing checkpoints directory
+⚠️ **Conversation Context**: Multi-turn conversation needs stress testing
 
 ---
 

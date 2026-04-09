@@ -191,6 +191,7 @@ export class MemoryManager {
       sessionId: this.currentSession.id,
       role: msg.role,
       content: msg.content,
+      reasoningContent: msg.reasoningContent,
       toolCalls: msg.toolCalls,
       toolCallId: msg.toolCallId,
       createdAt: Date.now(),
@@ -198,14 +199,15 @@ export class MemoryManager {
     };
 
     const stmt = this.db.prepare(`
-      INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, created_at, tokens)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO messages (id, session_id, role, content, reasoning_content, tool_calls, tool_call_id, created_at, tokens)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       message.id,
       message.sessionId,
       message.role,
       message.content,
+      message.reasoningContent !== undefined ? message.reasoningContent : null,
       message.toolCalls || null,
       message.toolCallId || null,
       message.createdAt,
@@ -228,6 +230,7 @@ export class MemoryManager {
       sessionId: row.session_id,
       role: row.role,
       content: row.content,
+      reasoningContent: row.reasoning_content,
       toolCalls: row.tool_calls,
       toolCallId: row.tool_call_id,
       createdAt: row.created_at,
@@ -249,6 +252,7 @@ export class MemoryManager {
       sessionId: row.session_id,
       role: row.role,
       content: row.content,
+      reasoningContent: row.reasoning_content,
       toolCalls: row.tool_calls,
       toolCallId: row.tool_call_id,
       createdAt: row.created_at,

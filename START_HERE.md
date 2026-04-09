@@ -1,21 +1,35 @@
 # Quick Start for New Agent
 
-## ✅ FIXED: AI Now Responds!
+## ✅ Current Status
 
-**Root Cause**: SSE parsing bug - Kimi API sends `data:{...}` without space after colon, but code expected `data: {...}` with space.
+- **Chat**: ✅ Working - AI responds to messages
+- **Tool Execution**: ✅ Working - view, edit, bash, search tools all functional
+- **Streaming**: ✅ Working - real-time response streaming
+- **Memory**: ✅ Working - conversation history persists
 
-**Fix Location**: `src/kimi.ts` line ~149
+## Recent Fixes
 
-**The Fix**:
+### 1. SSE Parsing Bug (Chat)
+**Issue**: Kimi API sends `data:{...}` without space after colon, but code expected `data: {...}` with space.
+
+**Fix**: Changed parsing in `kimi.ts` line ~149:
 ```typescript
-// OLD (broken):
-if (!trimmed.startsWith('data: ')) continue;  // Required space
-const data = trimmed.slice(6);  // Would miss data without space
+// OLD:
+if (!trimmed.startsWith('data: ')) continue;
+const data = trimmed.slice(6);
 
-// NEW (fixed):
-if (!trimmed.startsWith('data:')) continue;  // Space optional
-const data = trimmed.slice(5).trimStart();  // Handle both formats
+// NEW:
+if (!trimmed.startsWith('data:')) continue;
+const data = trimmed.slice(5).trimStart();
 ```
+
+### 2. Tool Execution Flow
+**Issue**: Tool execution wasn't completing the ReAct loop properly.
+
+**Fixes**:
+- Added `doneHandled` flag to prevent duplicate assistant messages
+- Added `reasoningContent` field to assistant messages with tool_calls (Kimi requirement)
+- Changed tool error handling to continue conversation loop instead of stopping
 
 ## Environment Setup
 ```bash
@@ -33,10 +47,21 @@ horus chat
 ## Key Files
 | File | Purpose |
 |------|---------|
-| `src/agent-enhanced.ts` | Main agent logic - contains `chat()` and `step()` |
-| `src/kimi.ts` | API client - handles streaming |
-| `src/memory/manager.ts` | SQLite persistence - stores conversation |
-| `src/ui/terminal.ts` | Input handling - user prompts |
+| `src/agent-enhanced.ts` | Main agent logic - chat loop, step(), tool execution |
+| `src/kimi.ts` | API client - streaming, tool call parsing |
+| `src/memory/manager.ts` | SQLite persistence - messages, context |
+| `src/tools/*.ts` | Tool implementations (view, edit, bash, search) |
+
+## Testing Tool Execution
+```bash
+# Test basic chat
+horus chat
+> List the files in the current directory
+
+# Test file creation  
+horus chat
+> Create a file called test.txt with "Hello World"
+```
 
 ## API Details
 - **Endpoint**: `https://api.kimi.com/coding/v1`

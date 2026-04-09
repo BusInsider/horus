@@ -187,7 +187,7 @@ program
       }, subagentConfig);
 
       await memory.initialize();
-      subagentConfig.db = memory['db'];
+      subagentConfig.db = (memory as unknown as { db: Database }).db;
 
       const tools = new Map([
         // File operations

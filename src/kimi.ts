@@ -3,7 +3,7 @@
 export interface KimiConfig {
   apiKey: string;
   baseUrl: string;
-  model: 'kimi-k2-5' | 'kimi-latest';
+  model: 'kimi-k2-5' | 'kimi-latest' | 'kimi-for-coding';
   maxRetries?: number;
   timeoutMs?: number;
 }
@@ -87,7 +87,7 @@ export class KimiClient {
     const url = `${this.config.baseUrl}/chat/completions`;
     
     // Map model names for kimi-for-coding endpoint
-    let modelName = this.config.model;
+    let modelName: string = this.config.model;
     if (this.config.baseUrl.includes('api.kimi.com') && modelName === 'kimi-k2-5') {
       modelName = 'kimi-for-coding';
     }
@@ -183,7 +183,6 @@ export class KimiClient {
             try {
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta;
-              const finishReason = parsed.choices?.[0]?.finish_reason;
 
               // Handle Kimi's interleaved thinking + content
               // reasoning_content = chain-of-thought, content = final response

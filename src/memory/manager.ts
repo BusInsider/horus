@@ -431,7 +431,7 @@ export class MemoryManager {
     return all.slice(0, k);
   }
 
-  private async recallEpisodes(queryEmbedding: Float32Array, k: number): Promise<RecalledMemory[]> {
+  private async recallEpisodes(queryEmbedding: number[], k: number): Promise<RecalledMemory[]> {
     // Get all episodes with embeddings
     const rows = this.db
       .prepare('SELECT id, action_summary, context, outcome, created_at, embedding FROM episodes ORDER BY created_at DESC LIMIT 1000')
@@ -464,7 +464,7 @@ export class MemoryManager {
       }));
   }
 
-  private async recallFacts(queryEmbedding: Float32Array, k: number): Promise<RecalledMemory[]> {
+  private async recallFacts(queryEmbedding: number[], k: number): Promise<RecalledMemory[]> {
     const rows = this.db
       .prepare('SELECT id, fact, category, source, confidence, created_at, embedding FROM facts')
       .all() as any[];
@@ -505,7 +505,7 @@ export class MemoryManager {
       }));
   }
 
-  private async recallFiles(queryEmbedding: Float32Array, k: number): Promise<RecalledMemory[]> {
+  private async recallFiles(queryEmbedding: number[], k: number): Promise<RecalledMemory[]> {
     const rows = this.db
       .prepare('SELECT id, path, summary, outline, indexed_at, embedding FROM files WHERE embedding IS NOT NULL')
       .all() as any[];
@@ -536,7 +536,7 @@ export class MemoryManager {
       }));
   }
 
-  private async recallChunks(queryEmbedding: Float32Array, k: number): Promise<RecalledMemory[]> {
+  private async recallChunks(queryEmbedding: number[], k: number): Promise<RecalledMemory[]> {
     const rows = this.db.prepare(`
       SELECT c.id, c.content, c.chunk_type, c.name, c.start_line, c.end_line, f.path, c.embedding
       FROM chunks c

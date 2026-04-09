@@ -11,7 +11,7 @@ import { expandHomeDir } from './utils/paths.js';
 export interface DiagnosticResult {
   category: string;
   check: string;
-  status: 'pass' | 'warn' | 'fail';
+  status: 'pass' | 'warn' | 'fail' | 'skip';
   message: string;
   fix?: string;
 }
@@ -138,7 +138,7 @@ export class Doctor {
     const config = loadConfig();
 
     if (!config.provider.apiKey) {
-      this.addResult('API', 'Connection Test', 'skip', 'Skipped (no API key)');
+      this.addResult('API', 'Connection Test', 'warn', 'Skipped (no API key)');
       return;
     }
 

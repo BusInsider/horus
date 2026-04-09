@@ -73,7 +73,7 @@ export class Agent {
     const lastMessage = this.memory.getLastMessage();
     let relevantMemories: RecalledMemory[] = [];
 
-    if (lastMessage && lastMessage.role === 'user') {
+    if (lastMessage && lastMessage.role === 'user' && lastMessage.content) {
       this.ui.showRecallStart();
       relevantMemories = await this.memory.recall(lastMessage.content);
       this.ui.showRecalledMemories(relevantMemories);

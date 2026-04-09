@@ -9,7 +9,7 @@ import { Tool, ToolContext } from './tools/types.js';
 import { TerminalUI } from './ui/terminal.js';
 import { PlanManager, Plan, PlanStep } from './plan.js';
 import { CheckpointManager } from './checkpoint.js';
-import { SubagentManager } from './subagent.js';
+// import { SubagentManager } from './subagent.js';
 import { ErrorHandler, getErrorHandler } from './error-handler.js';
 import { TokenManager, getTokenManager } from './token-manager.js';
 import { SessionPersistence, getSessionPersistence } from './session-persistence.js';

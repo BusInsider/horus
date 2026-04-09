@@ -15,6 +15,7 @@ import { TokenManager, getTokenManager } from './token-manager.js';
 import { SessionPersistence, getSessionPersistence } from './session-persistence.js';
 import { Logger } from './utils/logger.js';
 import { ModeController, ModeType, getModeController } from './mode-controller.js';
+import { ContextLoader, estimateProjectSize } from './context-loader.js';
 
 export interface EnhancedAgentConfig {
   kimi: KimiClient;
@@ -689,6 +690,19 @@ Return JSON:
     const messages: Message[] = [];
 
     let systemPrompt = this.getSystemPrompt();
+
+    // Check if we should load full codebase into context (Kimi 256K optimization)
+    const projectEstimate = await estimateProjectSize(this.cwd);
+    if (projectEstimate.fitsInContext && projectEstimate.fileCount > 0) {
+      console.log(chalk.gray(`[Loading ${projectEstimate.fileCount} files (${Math.round(projectEstimate.estimatedTokens/1000)}K tokens) into context...]`));
+      const loader = new ContextLoader({ rootPath: this.cwd });
+      const { files, totalTokens, truncated } = await loader.loadContext();
+      if (files.length > 0) {
+        const codebaseContext = loader.formatForContext(files);
+        systemPrompt += '\n\n' + codebaseContext;
+        console.log(chalk.gray(`[Context loaded: ${files.length} files, ~${Math.round(totalTokens/1000)}K tokens${truncated ? ', truncated' : ''}]`));
+      }
+    }
 
     if (memories.length > 0) {
       const memoryContext = this.formatMemoriesForContext(memories);

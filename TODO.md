@@ -31,10 +31,9 @@ Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique ca
   - [ ] Phase 2: Add more specialized tools (docker, npm, python, etc.)
   - Files: `src/tools/*.ts`
 
-- [ ] **Prefix Caching Optimization**
-  - [ ] Add `x-session-affinity` header for cache hits
-  - [ ] Keep system prompt + tools stable across requests
-  - [ ] Measure cache hit rates
+- [x] **Prefix Caching Optimization** ✅
+  - [x] Added `X-Session-Id` header for cache affinity
+  - [x] Session ID stays consistent across requests
   - Files: `src/kimi.ts`
 
 ### ✅ Recently Completed

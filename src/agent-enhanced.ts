@@ -421,7 +421,7 @@ export class EnhancedAgent {
     const effectiveTools = modeConfig.toolsEnabled ? toolDefinitions : [];
 
     console.log(chalk.gray(`[Calling API with ${contextMessages.length} messages...]`));
-    console.log(chalk.gray(`[Mode: ${modeConfig.name}, Temp: ${modeConfig.temperature}, Thinking: ${modeConfig.thinking.type}]`));
+    console.log(chalk.gray(`[Mode: ${modeConfig.name}, Session: ${this.kimi.getSessionId().slice(0, 8)}...]`));
 
     let doneHandled = false;
     try {

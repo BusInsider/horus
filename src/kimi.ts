@@ -51,6 +51,7 @@ export interface StreamChunk {
 
 export class KimiClient {
   private config: Required<KimiConfig>;
+  private sessionId: string;
 
   constructor(config: KimiConfig) {
     this.config = {
@@ -58,6 +59,19 @@ export class KimiClient {
       timeoutMs: 120000,
       ...config,
     };
+    // Generate session ID for prefix caching
+    // Session affinity helps API cache system prompt + tools
+    this.sessionId = this.generateSessionId();
+  }
+
+  private generateSessionId(): string {
+    // Simple hash of config to create consistent session ID
+    const hash = Buffer.from(`${this.config.model}:${this.config.baseUrl}`).toString('base64').slice(0, 16);
+    return `horus_${hash}_${Date.now().toString(36)}`;
+  }
+
+  getSessionId(): string {
+    return this.sessionId;
   }
 
   async *stream(
@@ -114,6 +128,7 @@ export class KimiClient {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.config.apiKey}`,
             'User-Agent': userAgent,
+            'X-Session-Id': this.sessionId,
           },
           body: JSON.stringify(body),
           signal: controller.signal,
@@ -259,6 +274,7 @@ export class KimiClient {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.config.apiKey}`,
         'User-Agent': userAgent,
+        'X-Session-Id': this.sessionId,
       },
       body: JSON.stringify(body),
     });

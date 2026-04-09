@@ -1,4 +1,4 @@
-import { ReadLine, createInterface } from 'readline';
+import * as readline from 'readline';
 import chalk from 'chalk';
 import { marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
@@ -9,14 +9,10 @@ import { RecalledMemory } from '../memory/manager.js';
 marked.use(markedTerminal() as any);
 
 export class TerminalUI {
-  private rl?: ReadLine;
   private isStreaming: boolean = false;
 
   constructor() {
-    this.rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+    // No shared readline - we create fresh ones per prompt to avoid conflicts
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -164,12 +160,25 @@ export class TerminalUI {
 
   async prompt(message: string): Promise<string> {
     return new Promise((resolve) => {
-      if (!this.rl) {
-        resolve('');
-        return;
-      }
-      this.rl.question(chalk.green(message + ' '), (answer) => {
-        resolve(answer);
+      // Use terminal: false to prevent double echo
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        terminal: false,
+      });
+      
+      // Write the prompt manually
+      process.stdout.write(message + ' ');
+      
+      let input = '';
+      
+      rl.on('line', (line) => {
+        input = line;
+        rl.close();
+      });
+      
+      rl.on('close', () => {
+        resolve(input);
       });
     });
   }
@@ -183,7 +192,7 @@ export class TerminalUI {
   }
 
   close(): void {
-    this.rl?.close();
+    // Nothing to close - readlines are created per-prompt and closed immediately
   }
 }
 

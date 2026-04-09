@@ -1,6 +1,7 @@
 // Enhanced Agent with Plan Mode, Checkpoints, Subagents, and Stability Features
 // Hermes-equivalent flexibility with error recovery, token management, and persistence
 
+import chalk from 'chalk';
 import { KimiClient, Message, ToolDefinition, ToolCall } from './kimi.js';
 import { MemoryManager, RecalledMemory } from './memory/manager.js';
 import { Tool, ToolContext } from './tools/types.js';
@@ -106,6 +107,83 @@ export class EnhancedAgent {
     } finally {
       // Cleanup
       this.isRunning = false;
+      this.sessionPersistence.stopAutoSave();
+      await this.memory.endSession();
+      this.ui.showSessionEnd();
+    }
+  }
+
+  /**
+   * Interactive chat mode - keeps session alive between messages
+   */
+  async chat(cwd: string, getInput: () => Promise<string>): Promise<void> {
+    this.cwd = cwd;
+    this.iterationCount = 0;
+
+    // Start session once
+    await this.memory.startSession(cwd);
+    const session = this.memory.getCurrentSession();
+    this.ui.showSessionStart(session!.id, cwd);
+
+    // Initialize managers
+    this.checkpointManager = this.memory.checkpointManager;
+    this.planManager = new PlanManager(cwd);
+    await this.sessionPersistence.initialize();
+
+    // Index workspace once
+    this.ui.showIndexingStart();
+    const indexResult = await this.memory.indexWorkspace(cwd);
+    this.ui.showIndexingComplete(indexResult.files, indexResult.chunks);
+
+    // Add system prompt once
+    await this.memory.addMessage({
+      role: 'system',
+      content: this.getSystemPrompt(),
+    });
+
+    // Start auto-save
+    this.startAutoSave();
+
+    try {
+      // Chat loop
+      while (true) {
+        const input = await getInput();
+        
+        if (input.toLowerCase() === 'exit' || input.toLowerCase() === 'quit') {
+          break;
+        }
+        
+        if (!input.trim()) {
+          continue;
+        }
+
+        // Add user message
+        await this.memory.addMessage({
+          role: 'user',
+          content: input,
+        });
+
+        // Process with AI (single step for chat)
+        this.isRunning = true;
+        this.iterationCount = 0; // Reset for each message
+        
+        console.log(chalk.gray('[Sending to AI...]'));
+        
+        try {
+          while (this.isRunning && this.iterationCount < this.maxIterations) {
+            const shouldContinue = await this.step();
+            if (!shouldContinue) break;
+            this.iterationCount++;
+          }
+        } catch (error) {
+          this.ui.error(error instanceof Error ? error.message : 'Unknown error');
+        }
+        
+        this.isRunning = false;
+        console.log(); // Add spacing between turns
+      }
+    } finally {
+      // Cleanup
       this.sessionPersistence.stopAutoSave();
       await this.memory.endSession();
       this.ui.showSessionEnd();
@@ -324,6 +402,8 @@ export class EnhancedAgent {
     const chunks: string[] = [];
     const toolCalls: ToolCall[] = [];
 
+    console.log(chalk.gray(`[Calling API with ${contextMessages.length} messages...]`));
+
     try {
       for await (const chunk of this.kimi.stream(contextMessages, toolDefinitions)) {
         switch (chunk.type) {
@@ -346,6 +426,8 @@ export class EnhancedAgent {
                 content: chunks.join(''),
                 toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
               });
+            } else {
+              console.log(chalk.yellow('[No content received from API]'));
             }
             break;
 

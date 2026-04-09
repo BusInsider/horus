@@ -5,3 +5,4 @@ export { searchTool } from './search.js';
 export { globTool } from './glob.js';
 export { createRecallTool, createRememberTool, createIndexWorkspaceTool } from './memory.js';
 export { createToolDefinition, Tool, ToolContext, ToolResult } from './types.js';
+export { ToolOrchestrator, ToolClassification, ToolCall as InternalToolCall } from './orchestrator.js';

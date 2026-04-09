@@ -46,6 +46,24 @@ export async function runConfigureWizard(): Promise<void> {
     config.provider.apiKey = apiKey.trim();
   }
 
+  // API Key type selection (important for API key compatibility)
+  console.log(chalk.gray('\n  Note: Different API key types use different endpoints.'));
+  console.log(chalk.gray('  - Moonshot keys (most common): api.moonshot.ai/v1 (International/US)'));
+  console.log(chalk.gray('  - Moonshot China keys: api.moonshot.cn/v1'));
+  console.log(chalk.gray('  - Kimi Coding keys: api.kimi.com/coding/v1 (requires special access)'));
+  const keyType = await ask(`Key type (moonshot-us/moonshot-cn/kimi) [moonshot-us]: `);
+  const keyTypeLower = keyType.trim().toLowerCase();
+  if (keyTypeLower === 'moonshot-cn') {
+    config.provider.baseUrl = 'https://api.moonshot.cn/v1';
+    console.log(chalk.gray('  Using Moonshot China endpoint: api.moonshot.cn/v1'));
+  } else if (keyTypeLower === 'kimi') {
+    config.provider.baseUrl = 'https://api.kimi.com/coding/v1';
+    console.log(chalk.gray('  Using Kimi Coding endpoint: api.kimi.com/coding/v1'));
+  } else {
+    config.provider.baseUrl = 'https://api.moonshot.ai/v1';
+    console.log(chalk.gray('  Using Moonshot International/US endpoint: api.moonshot.ai/v1'));
+  }
+
   const model = await ask(`Model [${config.provider.model}]: `);
   if (model.trim()) {
     config.provider.model = model as 'kimi-k2-5' | 'kimi-latest';

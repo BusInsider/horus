@@ -30,7 +30,7 @@ const DEFAULT_CONFIG: Config = {
   provider: {
     apiKey: '',
     model: 'kimi-k2-5',
-    baseUrl: 'https://api.moonshot.cn/v1',
+    baseUrl: 'https://api.moonshot.ai/v1',  // Moonshot International/US endpoint
   },
   memory: {
     dbPath: '~/.horus/memory.db',

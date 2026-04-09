@@ -176,56 +176,46 @@ program
         console.log(chalk.yellow('📋 Plan mode enabled\n'));
       }
 
-      // Interactive loop
-      while (true) {
-        const input = await ui.prompt('>');
-        
-        if (input.toLowerCase() === 'exit' || input.toLowerCase() === 'quit') {
-          break;
-        }
-
-        if (!input.trim()) {
-          continue;
-        }
-
-        // Handle special commands
-        if (input.startsWith('/agent')) {
-          const args = input.slice(6).trim().split(' ').filter(Boolean);
-          if (args.length === 0) {
-            printAgentHelp();
-          } else {
-            await handleAgentCommand(args);
+      // Use chat mode for interactive session
+      try {
+        await agent.chat(cwd, async () => {
+          const input = await ui.prompt('>');
+          
+          // Handle special commands
+          if (input.startsWith('/agent')) {
+            const args = input.slice(6).trim().split(' ').filter(Boolean);
+            if (args.length === 0) {
+              printAgentHelp();
+            } else {
+              await handleAgentCommand(args);
+            }
+            return '';
           }
-          continue;
-        }
 
-        if (input.startsWith('/checkpoint')) {
-          await handleCheckpointCommand(input, memory, ui);
-          continue;
-        }
+          if (input.startsWith('/checkpoint')) {
+            await handleCheckpointCommand(input, memory, ui);
+            return '';
+          }
 
-        if (input.startsWith('/rollback')) {
-          await handleRollbackCommand(input, memory, ui);
-          continue;
-        }
+          if (input.startsWith('/rollback')) {
+            await handleRollbackCommand(input, memory, ui);
+            return '';
+          }
 
-        if (input.startsWith('/task')) {
-          await handleTaskCommand(input, memory, ui);
-          continue;
-        }
+          if (input.startsWith('/task')) {
+            await handleTaskCommand(input, memory, ui);
+            return '';
+          }
 
-        if (input.startsWith('/plan')) {
-          await agent.run(input.slice(5).trim() || 'Create a plan', cwd, { planMode: true });
-          continue;
-        }
+          if (input.startsWith('/plan')) {
+            // Return plan command for the agent to handle
+            return input;
+          }
 
-        try {
-          await agent.run(input, cwd);
-        } catch (error) {
-          ui.error(error instanceof Error ? error.message : 'Unknown error');
-        }
-
-        console.log();
+          return input;
+        });
+      } catch (error) {
+        ui.error(error instanceof Error ? error.message : 'Unknown error');
       }
 
       ui.close();

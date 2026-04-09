@@ -56,21 +56,32 @@ export class Doctor {
   }
 
   async checkDependencies(): Promise<void> {
-    const criticalDeps = [
-      'better-sqlite3',
-      '@xenova/transformers',
-      'chalk',
-      'commander',
-    ];
+    // These are the external dependencies (not bundled)
+    const externalDeps = ['better-sqlite3', '@xenova/transformers'];
+    // These are bundled into the CLI
+    const bundledDeps = ['chalk', 'commander'];
 
-    for (const dep of criticalDeps) {
+    // Check external deps by trying to resolve them
+    for (const dep of externalDeps) {
       try {
-        const depPath = join(process.cwd(), 'node_modules', dep);
-        await fs.access(depPath);
+        // Use require.resolve to find the module
+        require.resolve(dep);
         this.addResult('Dependencies', dep, 'pass', 'Installed');
       } catch {
-        this.addResult('Dependencies', dep, 'fail', 'Not installed', `npm install ${dep}`);
+        // Check if installed in horus node_modules
+        try {
+          const horusNodeModules = join(process.env.HOME || '', '.hermes', 'workspace', 'horus', 'node_modules', dep);
+          await fs.access(horusNodeModules);
+          this.addResult('Dependencies', dep, 'pass', 'Installed');
+        } catch {
+          this.addResult('Dependencies', dep, 'fail', 'Not installed', `cd ~/.hermes/workspace/horus && npm install ${dep}`);
+        }
       }
+    }
+
+    // Bundled deps are always available
+    for (const dep of bundledDeps) {
+      this.addResult('Dependencies', dep, 'pass', 'Bundled');
     }
   }
 
@@ -97,6 +108,17 @@ export class Doctor {
       } else {
         this.addResult('Configuration', 'Model', 'warn', `${config.provider.model} (may not be supported)`);
       }
+
+      // Check endpoint type
+      let endpointType: string;
+      if (config.provider.baseUrl.includes('kimi.com')) {
+        endpointType = 'Kimi Coding (sk-kimi- keys)';
+      } else if (config.provider.baseUrl.includes('.cn')) {
+        endpointType = 'Moonshot China';
+      } else {
+        endpointType = 'Moonshot International/US';
+      }
+      this.addResult('Configuration', 'API Endpoint', 'pass', `${endpointType} - ${config.provider.baseUrl}`);
 
       // Check workspace
       const workspacePath = expandHomeDir(config.workspace.defaultPath);
@@ -133,7 +155,21 @@ export class Doctor {
       this.addResult('API', 'Connection Test', 'pass', `Connected to ${config.provider.baseUrl}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.addResult('API', 'Connection Test', 'fail', message, 'Check API key and network connection');
+      const is401 = message.includes('401') || message.includes('Invalid Authentication');
+      const isChinaEndpoint = config.provider.baseUrl.includes('.cn');
+      
+      let fix = 'Check API key and network connection';
+      if (is401) {
+        if (config.provider.baseUrl.includes('kimi.com')) {
+          fix = 'Your key may not be a sk-kimi- key, or lacks Coding access. Run `horus configure` and select moonshot-us for standard access';
+        } else if (config.provider.baseUrl.includes('.cn')) {
+          fix = 'Your key may not be a Moonshot China key. Run `horus configure` and select the correct key type';
+        } else {
+          fix = 'Your key may not be a Moonshot International key. Run `horus configure` and select the correct key type';
+        }
+      }
+      
+      this.addResult('API', 'Connection Test', 'fail', message, fix);
     }
   }
 

@@ -37,11 +37,41 @@
 ### 🔥 High Priority (Next)
 
 - [ ] **Integrate new features into Agent Loop**
+  - [x] Pre-integration architecture review
+    - Verified `ToolResult` discriminated union compatibility
+    - Confirmed `Map<string, Tool>` registry compatibility
+    - Validated `StreamingToolExecutor.processStream()` API
+    - Created `src/agent-integration.ts` as integration layer
   - [ ] Replace existing tool execution with orchestrator
   - [ ] Add prompt caching to system prompt generation
   - [ ] Enable streaming tool executor
   - [ ] Benchmark performance improvements
   - Target: 2-5x speedup on multi-tool turns, 80% cache hit rate
+
+#### Integration Plan (from agent-integration.ts)
+
+**Prompt Cacher Integration** (`src/agent-enhanced.ts` lines 573-582):
+```typescript
+// Replace getSystemPrompt() with PromptCacheManager
+const cacher = new PromptCacheManager();
+cacher.addStaticSection(coreIdentity, 100);
+cacher.setVolatileComputer(() => formatMemories(memories));
+const { full: systemPrompt } = cacher.buildPrompt();
+```
+
+**Streaming Executor Integration** (`src/agent-enhanced.ts` lines 276-295):
+```typescript
+// Replace sequential executeToolCallWithRecovery() with streaming
+const { assistantContent, toolResults, shouldContinue } = 
+  await runStreamingStep(config, messages, toolDefinitions);
+```
+
+**Key Compatibility Verified**:
+- ✅ `Tool` interface matches (name, description, parameters, execute)
+- ✅ `ToolResult` structure matches `{ok, content}` / `{ok, error}`
+- ✅ `ToolCall` from kimi.ts has `{id, type, function: {name, arguments}}`
+- ✅ `StreamingToolExecutor.processStream()` yields compatible `StreamEvent`
+- ✅ Error recovery preserved via `executeToolWithRecovery()` wrapper
 
 ### 🚀 Medium Priority (Backlog)
 
@@ -79,15 +109,32 @@
 
 | Metric | Value |
 |--------|-------|
-| Lines of Code | ~5,000 |
+| Lines of Code | ~5,800 |
 | Test Suites | 6 |
 | Tests Passing | 28 |
 | Build Time | ~85ms |
 | Bundle Size | 3.1 MB |
+| Integration Layer | `src/agent-integration.ts` (new) |
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-08: Kimi API Connection + US Endpoint Fix
+- Fixed TypeScript type in `kimi.ts` complete() method
+- Added `src/__tests__/kimi.test.ts` with 10 API client tests
+- Created `scripts/test-kimi-api.ts` for manual connection testing
+- **Changed default baseUrl to US endpoint**: `https://api.moonshot.ai/v1`
+- Added region selector in `horus configure` wizard (us/cn)
+- Updated `showConfiguration` to display current endpoint
+- All 39 tests passing
+- Kimi API client ready for production use
+
+### 2026-04-08: Integration Architecture Review
+- Created `src/agent-integration.ts` as bridge layer
+- Verified type compatibility between new and existing components
+- Documented integration points in agent-enhanced.ts
+- All type checks pass, all 17 component tests passing
 
 ### 2026-04-08: Claude Code Architecture Features
 - Implemented tool concurrency classification (read-only parallel, write serial)

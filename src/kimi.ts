@@ -65,15 +65,24 @@ export class KimiClient {
     options?: { temperature?: number; maxTokens?: number }
   ): AsyncGenerator<StreamChunk> {
     const url = `${this.config.baseUrl}/chat/completions`;
+    
+    // Map model names for kimi-for-coding endpoint
+    let modelName = this.config.model;
+    if (this.config.baseUrl.includes('api.kimi.com') && modelName === 'kimi-k2-5') {
+      modelName = 'kimi-for-coding';
+    }
+    
     const body = {
-      model: this.config.model,
+      model: modelName,
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? 'auto' : undefined,
       stream: true,
       temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens,
+      max_tokens: options?.maxTokens ?? 4000,
     };
+    
+
 
     let retries = 0;
     while (retries < this.config.maxRetries) {
@@ -81,11 +90,18 @@ export class KimiClient {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
+        // Determine User-Agent based on endpoint
+        const isKimiCoding = this.config.baseUrl.includes('api.kimi.com');
+        const userAgent = isKimiCoding 
+          ? 'KimiCLI/1.0'  // Required for api.kimi.com/coding/v1
+          : 'Horus/0.1.0';
+
         const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.config.apiKey}`,
+            'User-Agent': userAgent,
           },
           body: JSON.stringify(body),
           signal: controller.signal,
@@ -114,6 +130,7 @@ export class KimiClient {
         const decoder = new TextDecoder();
         let buffer = '';
         let currentToolCalls: ToolCall[] = [];
+        let lineCount = 0;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -124,10 +141,13 @@ export class KimiClient {
           buffer = lines.pop() || '';
 
           for (const line of lines) {
+            lineCount++;
             const trimmed = line.trim();
-            if (!trimmed.startsWith('data: ')) continue;
+            // SSE format: "data: ..." or "data:..." (space is optional)
+            if (!trimmed.startsWith('data:')) continue;
 
-            const data = trimmed.slice(6);
+            // Extract data after "data:" (handle both "data: " and "data:")
+            const data = trimmed.slice(5).trimStart();
             if (data === '[DONE]') {
               yield { type: 'done' };
               return;
@@ -136,9 +156,12 @@ export class KimiClient {
             try {
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta;
+              const finishReason = parsed.choices?.[0]?.finish_reason;
 
-              if (delta?.content) {
-                yield { type: 'token', content: delta.content };
+              // Handle both regular content and Kimi's reasoning_content
+              const content = delta?.content || delta?.reasoning_content;
+              if (content) {
+                yield { type: 'token', content };
               }
 
               if (delta?.tool_calls) {
@@ -209,11 +232,18 @@ export class KimiClient {
       max_tokens: options?.maxTokens ?? 500,
     };
 
+    // Determine User-Agent based on endpoint
+    const isKimiCoding = this.config.baseUrl.includes('api.kimi.com');
+    const userAgent = isKimiCoding 
+      ? 'KimiCLI/1.0'  // Required for api.kimi.com/coding/v1
+      : 'Horus/0.1.0';
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.config.apiKey}`,
+        'User-Agent': userAgent,
       },
       body: JSON.stringify(body),
     });
@@ -223,7 +253,7 @@ export class KimiClient {
       throw new Error(`Kimi API error: ${response.status} ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     return data.choices?.[0]?.message?.content || '';
   }
 

@@ -24,6 +24,7 @@ import { SubagentConfig } from './subagent.js';
 import { PlanManager } from './plan.js';
 import { handleAgentCommand, printAgentHelp } from './agents/index.js';
 import { initLogger } from './utils/logger.js';
+import { ModeType, ModeController } from './mode-controller.js';
 import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
 import { runDoctor } from './doctor.js';
 import chalk from 'chalk';
@@ -103,10 +104,35 @@ program
   });
 
 program
+  .command('modes')
+  .description('List available modes and their descriptions')
+  .action(() => {
+    console.log(chalk.blue('\n🎯 Horus Modes\n'));
+    console.log(chalk.gray('Horus supports four Kimi-native modes optimized for different use cases:\n'));
+    
+    const modes = [
+      { name: 'instant', desc: 'Quick responses, lowest cost', temp: 0.6, tools: false, cost: '$0.60/M input' },
+      { name: 'thinking', desc: 'Complex reasoning with chain-of-thought', temp: 1.0, tools: false, cost: '$0.60/M input' },
+      { name: 'agent', desc: 'Multi-tool workflows (default)', temp: 1.0, tools: true, cost: '$0.60/M input' },
+      { name: 'swarm', desc: 'Parallel sub-agent execution', temp: 1.0, tools: true, cost: 'Varies by parallelism' },
+    ];
+    
+    for (const m of modes) {
+      console.log(`${chalk.cyan(m.name.padEnd(10))} ${m.desc}`);
+      console.log(`           Temp: ${m.temp} | Tools: ${m.tools ? 'enabled' : 'disabled'} | ${m.cost}`);
+      console.log();
+    }
+    
+    console.log(chalk.gray('Usage: horus chat --mode <mode>'));
+    console.log(chalk.gray('Example: horus chat --mode thinking\n'));
+  });
+
+program
   .command('chat [path]')
   .description('Start an interactive chat session')
   .option('-r, --resume <sessionId>', 'Resume a previous session')
   .option('-p, --plan', 'Enable plan mode')
+  .option('-m, --mode <mode>', 'Mode: instant|thinking|agent|swarm (default: agent)')
   .option('-n, --name <name>', 'Name this session for later reference')
   .option('--tag <tags>', 'Comma-separated tags for this session')
   .action(async (path, options) => {
@@ -161,6 +187,20 @@ program
         ['index', createIndexWorkspaceTool(memory)],
       ]);
 
+      // Validate and set mode
+      let mode: ModeType = 'agent';
+      if (options.mode) {
+        const validModes: ModeType[] = ['instant', 'thinking', 'agent', 'swarm'];
+        if (!validModes.includes(options.mode)) {
+          console.error(`Error: Invalid mode "${options.mode}". Valid modes: ${validModes.join(', ')}`);
+          process.exit(1);
+        }
+        mode = options.mode;
+      }
+      
+      const modeController = new ModeController();
+      modeController.setMode(mode);
+
       const agent = new EnhancedAgent({
         kimi,
         memory,
@@ -169,9 +209,12 @@ program
         maxIterations: config.agent.maxIterations,
         autoCheckpoint: true,
         planMode: options.plan,
+        mode,
       });
 
+      const modeConfig = modeController.getConfig();
       console.log(chalk.blue('\n🧠 Horus is ready. Type your task or "exit" to quit.\n'));
+      console.log(chalk.gray(`Mode: ${modeConfig.name} | Temperature: ${modeConfig.temperature} | Tools: ${modeConfig.toolsEnabled ? 'enabled' : 'disabled'}\n`));
       if (options.plan) {
         console.log(chalk.yellow('📋 Plan mode enabled\n'));
       }

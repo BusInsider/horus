@@ -40,7 +40,7 @@ export interface ToolDefinition {
 }
 
 export interface StreamChunk {
-  type: 'token' | 'tool_call' | 'done' | 'error';
+  type: 'token' | 'reasoning' | 'tool_call' | 'done' | 'error';
   content?: string;
   toolCall?: ToolCall;
   usage?: {
@@ -63,7 +63,12 @@ export class KimiClient {
   async *stream(
     messages: Message[],
     tools: ToolDefinition[],
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { 
+      temperature?: number; 
+      maxTokens?: number;
+      thinking?: { type: 'enabled' | 'disabled' };
+      topP?: number;
+    }
   ): AsyncGenerator<StreamChunk> {
     const url = `${this.config.baseUrl}/chat/completions`;
     
@@ -73,15 +78,21 @@ export class KimiClient {
       modelName = 'kimi-for-coding';
     }
     
-    const body = {
+    const body: any = {
       model: modelName,
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? 'auto' : undefined,
       stream: true,
       temperature: options?.temperature ?? 0.7,
+      top_p: options?.topP ?? 0.95,
       max_tokens: options?.maxTokens ?? 4000,
     };
+    
+    // Add thinking configuration if provided (Kimi-specific)
+    if (options?.thinking) {
+      body.thinking = options.thinking;
+    }
     
 
 
@@ -159,10 +170,13 @@ export class KimiClient {
               const delta = parsed.choices?.[0]?.delta;
               const finishReason = parsed.choices?.[0]?.finish_reason;
 
-              // Handle both regular content and Kimi's reasoning_content
-              const content = delta?.content || delta?.reasoning_content;
-              if (content) {
-                yield { type: 'token', content };
+              // Handle Kimi's interleaved thinking + content
+              // reasoning_content = chain-of-thought, content = final response
+              if (delta?.reasoning_content) {
+                yield { type: 'reasoning', content: delta.reasoning_content };
+              }
+              if (delta?.content) {
+                yield { type: 'token', content: delta.content };
               }
 
               if (delta?.tool_calls) {

@@ -1,5 +1,6 @@
 // Enhanced Agent with Plan Mode, Checkpoints, Subagents, and Stability Features
 // Hermes-equivalent flexibility with error recovery, token management, and persistence
+// Kimi-native: Four-mode system (instant/thinking/agent/swarm)
 
 import chalk from 'chalk';
 import { KimiClient, Message, ToolDefinition, ToolCall } from './kimi.js';
@@ -13,6 +14,7 @@ import { ErrorHandler, getErrorHandler } from './error-handler.js';
 import { TokenManager, getTokenManager } from './token-manager.js';
 import { SessionPersistence, getSessionPersistence } from './session-persistence.js';
 import { Logger } from './utils/logger.js';
+import { ModeController, ModeType, getModeController } from './mode-controller.js';
 
 export interface EnhancedAgentConfig {
   kimi: KimiClient;
@@ -23,6 +25,7 @@ export interface EnhancedAgentConfig {
   autoCheckpoint?: boolean;
   planMode?: boolean;
   logger?: Logger;
+  mode?: ModeType;
 }
 
 export class EnhancedAgent {
@@ -33,6 +36,7 @@ export class EnhancedAgent {
   private maxIterations: number;
   private autoCheckpoint: boolean;
   private planMode: boolean;
+  private modeController: ModeController;
   private iterationCount: number = 0;
   private cwd: string = '';
   private planManager?: PlanManager;
@@ -52,6 +56,12 @@ export class EnhancedAgent {
     this.autoCheckpoint = config.autoCheckpoint ?? true;
     this.planMode = config.planMode ?? false;
     this.logger = config.logger || new Logger('agent');
+    
+    // Initialize mode controller
+    this.modeController = getModeController();
+    if (config.mode) {
+      this.modeController.setMode(config.mode);
+    }
     
     // Initialize stability components
     this.errorHandler = getErrorHandler(this.logger);
@@ -403,15 +413,32 @@ export class EnhancedAgent {
     const reasoningChunks: string[] = [];
     const toolCalls: ToolCall[] = [];
 
+    // Get mode configuration
+    const modeConfig = this.modeController.getConfig();
+    const effectiveTools = modeConfig.toolsEnabled ? toolDefinitions : [];
+
     console.log(chalk.gray(`[Calling API with ${contextMessages.length} messages...]`));
+    console.log(chalk.gray(`[Mode: ${modeConfig.name}, Temp: ${modeConfig.temperature}, Thinking: ${modeConfig.thinking.type}]`));
 
     let doneHandled = false;
     try {
-      for await (const chunk of this.kimi.stream(contextMessages, toolDefinitions)) {
+      for await (const chunk of this.kimi.stream(contextMessages, effectiveTools, {
+        temperature: modeConfig.temperature,
+        maxTokens: modeConfig.maxTokens,
+        thinking: modeConfig.thinking,
+        topP: modeConfig.topP,
+      })) {
         switch (chunk.type) {
           case 'token':
             this.ui.write(chunk.content || '');
             chunks.push(chunk.content || '');
+            break;
+
+          case 'reasoning':
+            // Kimi's chain-of-thought (only shown in thinking/agent modes)
+            reasoningChunks.push(chunk.content || '');
+            // Optionally display thinking (could add a flag for this)
+            // this.ui.write(chalk.dim(chunk.content || ''));
             break;
 
           case 'tool_call':
@@ -429,7 +456,7 @@ export class EnhancedAgent {
                   role: 'assistant',
                   content: chunks.join(''),
                   toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
-                  reasoningContent: toolCalls.length > 0 ? '[Thinking about tool usage...]' : undefined,  // Kimi requires this with tool_calls
+                  reasoningContent: reasoningChunks.join('') || (toolCalls.length > 0 ? '[Thinking about tool usage...]' : undefined),
                 });
               } else {
                 console.log(chalk.yellow('[No content received from API]'));

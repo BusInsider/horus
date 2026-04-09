@@ -25,12 +25,11 @@ Based on Kimi's infrastructure reference, Horus should leverage Kimi's unique ca
   - [ ] Store reasoning in memory for context
   - Files: `src/kimi.ts`, `src/agent-enhanced.ts`, `src/ui/terminal.ts`
 
-- [ ] **Expand Tool Registry (128 Tool Support)**
-  - [ ] Register all available tools (we have ~8, can add 50-100 more)
-  - [ ] Add `x-kimi-thinking: "required"` metadata for complex tools
-  - [ ] Group tools by category (file, search, git, deploy, etc.)
-  - [ ] New tools to add: `grep`, `find`, `git_status`, `git_diff`, `npm_install`, etc.
-  - Files: `src/tools/registry.ts`, `src/tools/index.ts`
+- [x] **Expand Tool Registry (128 Tool Support)** ✅ Phase 1
+  - [x] Expanded from 8 to 20 tools
+  - [x] New tools: cat, ls, mkdir, rm, grep, git_status, git_diff, git_log, fetch, json_parse, json_format, math
+  - [ ] Phase 2: Add more specialized tools (docker, npm, python, etc.)
+  - Files: `src/tools/*.ts`
 
 - [ ] **Prefix Caching Optimization**
   - [ ] Add `x-session-affinity` header for cache hits

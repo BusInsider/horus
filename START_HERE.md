@@ -59,6 +59,26 @@ npm run build
 horus chat
 ```
 
+## Available Tools (20 Total)
+
+### File Operations
+- `view`, `edit`, `cat`, `ls`, `mkdir`, `rm`
+
+### Search
+- `search` (ripgrep), `glob`, `grep` (regex)
+
+### Git
+- `git_status`, `git_diff`, `git_log`
+
+### Data Processing
+- `fetch` (HTTP), `json_parse`, `json_format`
+
+### Utilities
+- `bash`, `math` (calculator)
+
+### Memory
+- `recall`, `remember`, `index`
+
 ## Key Files
 | File | Purpose |
 |------|---------|
@@ -66,7 +86,7 @@ horus chat
 | `src/agent-enhanced.ts` | Main agent logic - chat loop, step(), tool execution |
 | `src/kimi.ts` | API client - streaming, tool call parsing |
 | `src/memory/manager.ts` | SQLite persistence - messages, context |
-| `src/tools/*.ts` | Tool implementations (view, edit, bash, search) |
+| `src/tools/*.ts` | 20 tool implementations |
 
 ## API Details
 - **Endpoint**: `https://api.kimi.com/coding/v1`

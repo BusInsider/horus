@@ -13,6 +13,18 @@ import {
   bashTool,
   searchTool,
   globTool,
+  catTool,
+  lsTool,
+  mkdirTool,
+  rmTool,
+  grepTool,
+  gitStatusTool,
+  gitDiffTool,
+  gitLogTool,
+  fetchTool,
+  jsonParseTool,
+  jsonFormatTool,
+  mathTool,
   createRecallTool,
   createRememberTool,
   createIndexWorkspaceTool,
@@ -178,11 +190,34 @@ program
       subagentConfig.db = memory['db'];
 
       const tools = new Map([
+        // File operations
         ['view', viewTool],
         ['edit', editTool],
-        ['bash', bashTool],
+        ['cat', catTool],
+        ['ls', lsTool],
+        ['mkdir', mkdirTool],
+        ['rm', rmTool],
+        
+        // Search and discovery
         ['search', searchTool],
         ['glob', globTool],
+        ['grep', grepTool],
+        
+        // Command execution
+        ['bash', bashTool],
+        
+        // Git operations
+        ['git_status', gitStatusTool],
+        ['git_diff', gitDiffTool],
+        ['git_log', gitLogTool],
+        
+        // Data processing
+        ['fetch', fetchTool],
+        ['json_parse', jsonParseTool],
+        ['json_format', jsonFormatTool],
+        ['math', mathTool],
+        
+        // Memory
         ['recall', createRecallTool(memory)],
         ['remember', createRememberTool(memory)],
         ['index', createIndexWorkspaceTool(memory)],

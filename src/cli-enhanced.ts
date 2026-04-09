@@ -133,6 +133,7 @@ program
   .option('-r, --resume <sessionId>', 'Resume a previous session')
   .option('-p, --plan', 'Enable plan mode')
   .option('-m, --mode <mode>', 'Mode: instant|thinking|agent|swarm (default: agent)')
+  .option('--show-thinking', 'Display reasoning_content (thinking mode)')
   .option('-n, --name <name>', 'Name this session for later reference')
   .option('--tag <tags>', 'Comma-separated tags for this session')
   .action(async (path, options) => {
@@ -210,6 +211,7 @@ program
         autoCheckpoint: true,
         planMode: options.plan,
         mode,
+        showThinking: options.showThinking,
       });
 
       const modeConfig = modeController.getConfig();

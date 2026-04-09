@@ -86,6 +86,11 @@ export class TerminalUI {
     this.isStreaming = true;
   }
 
+  writeThinking(text: string): void {
+    // Display reasoning content in dim gray
+    process.stdout.write(chalk.gray(text));
+  }
+
   writeLine(line: string): void {
     console.log(line);
   }

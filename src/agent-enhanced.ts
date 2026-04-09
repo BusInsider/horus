@@ -26,6 +26,7 @@ export interface EnhancedAgentConfig {
   planMode?: boolean;
   logger?: Logger;
   mode?: ModeType;
+  showThinking?: boolean;
 }
 
 export class EnhancedAgent {
@@ -37,6 +38,7 @@ export class EnhancedAgent {
   private autoCheckpoint: boolean;
   private planMode: boolean;
   private modeController: ModeController;
+  private showThinking: boolean;
   private iterationCount: number = 0;
   private cwd: string = '';
   private planManager?: PlanManager;
@@ -56,6 +58,7 @@ export class EnhancedAgent {
     this.autoCheckpoint = config.autoCheckpoint ?? true;
     this.planMode = config.planMode ?? false;
     this.logger = config.logger || new Logger('agent');
+    this.showThinking = config.showThinking ?? false;
     
     // Initialize mode controller
     this.modeController = getModeController();
@@ -437,8 +440,10 @@ export class EnhancedAgent {
           case 'reasoning':
             // Kimi's chain-of-thought (only shown in thinking/agent modes)
             reasoningChunks.push(chunk.content || '');
-            // Optionally display thinking (could add a flag for this)
-            // this.ui.write(chalk.dim(chunk.content || ''));
+            // Display thinking if --show-thinking flag is set
+            if (this.showThinking) {
+              this.ui.writeThinking(chunk.content || '');
+            }
             break;
 
           case 'tool_call':

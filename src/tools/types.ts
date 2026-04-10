@@ -3,6 +3,7 @@
 export interface ToolContext {
   cwd: string;
   sessionId?: string;
+  env?: Record<string, string>;
 }
 
 export type ToolResult = 

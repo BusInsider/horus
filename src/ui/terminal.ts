@@ -9,7 +9,8 @@ import { RecalledMemory } from '../memory/manager.js';
 marked.use(markedTerminal() as any);
 
 export class TerminalUI {
-  private isStreaming: boolean = false;
+  // @ts-expect-error Used for tracking streaming state, will be used for UI indicators
+  private isStreaming = false;
 
   constructor() {
     // No shared readline - we create fresh ones per prompt to avoid conflicts
@@ -118,11 +119,11 @@ export class TerminalUI {
     console.log(chalk.cyan(`\n[${name}: ${displayArgs}]`));
   }
 
-  showToolExecuting(name: string): void {
+  showToolExecuting(_name: string): void {
     // Already shown in showToolCall
   }
 
-  showToolResult(name: string, result: string): void {
+  showToolResult(_name: string, result: string): void {
     // Result is already streamed or shown inline
     const lines = result.split('\n').slice(0, 20);
     if (lines.length > 0 && result.length > 0) {

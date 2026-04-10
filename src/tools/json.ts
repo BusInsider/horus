@@ -15,7 +15,7 @@ export const jsonParseTool: Tool = {
     required: ['json'],
   },
 
-  async execute(args: { json: string }, context: ToolContext): Promise<ToolResult> {
+  async execute(args: { json: string }, _context: ToolContext): Promise<ToolResult> {
     try {
       const parsed = JSON.parse(args.json);
       return {
@@ -50,7 +50,7 @@ export const jsonFormatTool: Tool = {
     required: ['json'],
   },
 
-  async execute(args: { json: string; minify?: boolean }, context: ToolContext): Promise<ToolResult> {
+  async execute(args: { json: string; minify?: boolean }, _context: ToolContext): Promise<ToolResult> {
     try {
       const parsed = JSON.parse(args.json);
       const formatted = args.minify 

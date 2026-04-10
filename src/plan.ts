@@ -1,7 +1,7 @@
 // Plan mode for Horus - Hermes-style planning
 
 import { promises as fs } from 'fs';
-import { join, isAbsolute } from 'path';
+import { join } from 'path';
 
 export interface PlanStep {
   id: string;
@@ -21,11 +21,9 @@ export interface Plan {
 }
 
 export class PlanManager {
-  private cwd: string;
   private planPath: string;
 
   constructor(cwd: string) {
-    this.cwd = cwd;
     this.planPath = join(cwd, 'PLAN.md');
   }
 
@@ -149,7 +147,6 @@ export class PlanManager {
       rollbackStrategy: '',
     };
 
-    let inSteps = false;
     let currentStep: Partial<PlanStep> = {};
 
     for (let i = 0; i < lines.length; i++) {
@@ -168,7 +165,7 @@ export class PlanManager {
         }
         plan.context = contextLines.join('\n').trim();
       } else if (line === '## Steps') {
-        inSteps = true;
+
       } else if (line.startsWith('### Step')) {
         if (currentStep.id) {
           plan.steps.push(currentStep as PlanStep);
@@ -197,7 +194,7 @@ export class PlanManager {
         }
         i = j;
       } else if (line === '## Rollback Strategy') {
-        inSteps = false;
+
         let strategyLines: string[] = [];
         let j = i + 1;
         while (j < lines.length && !lines[j].startsWith('##')) {

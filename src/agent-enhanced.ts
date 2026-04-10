@@ -239,7 +239,7 @@ export class EnhancedAgent {
     }));
   }
 
-  private async askYesNo(question: string, defaultValue: boolean = false): Promise<boolean> {
+  private async askYesNo(_question: string, defaultValue: boolean = false): Promise<boolean> {
     // Simple implementation - in real UI would use proper prompt
     return defaultValue;
   }
@@ -387,7 +387,7 @@ export class EnhancedAgent {
     const lastMessage = this.memory.getLastMessage();
     let relevantMemories: RecalledMemory[] = [];
 
-    if (lastMessage && lastMessage.role === 'user') {
+    if (lastMessage && lastMessage.role === 'user' && lastMessage.content) {
       this.ui.showRecallStart();
       relevantMemories = await this.memory.recall(lastMessage.content);
       this.ui.showRecalledMemories(relevantMemories);
@@ -663,7 +663,8 @@ Return JSON:
     ]);
 
     try {
-      const parsed = JSON.parse(response);
+      const content = response.choices[0]?.message?.content || '';
+      const parsed = JSON.parse(content);
       return {
         objective,
         context: `Working directory: ${this.cwd}`,

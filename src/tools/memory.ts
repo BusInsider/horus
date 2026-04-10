@@ -30,7 +30,7 @@ for manual memory exploration.`,
       required: ['query'],
     },
 
-    async execute(args: { query: string; type?: string; limit?: number }, context: ToolContext): Promise<ToolResult> {
+    async execute(args: { query: string; type?: string; limit?: number }, _context: ToolContext): Promise<ToolResult> {
       try {
         const memories = await memory.recall(args.query, args.limit);
 
@@ -143,7 +143,7 @@ to force re-indexing after major changes.`,
       },
     },
 
-    async execute(args: { force?: boolean }, context: ToolContext): Promise<ToolResult> {
+    async execute(_args: { force?: boolean }, context: ToolContext): Promise<ToolResult> {
       try {
         const result = await memory.indexWorkspace(context.cwd);
 

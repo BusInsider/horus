@@ -1,6 +1,6 @@
 // Session Templates - Pre-configured session setups
+
 import Database from 'better-sqlite3';
-import { join, dirname } from 'path';
 
 export interface SessionTemplate {
   id: string;

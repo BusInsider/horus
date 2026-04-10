@@ -120,7 +120,7 @@ async function runRipgrep(options: {
       stderr += data.toString();
     });
 
-    child.on('error', (error) => {
+    child.on('error', () => {
       // ripgrep not installed
       reject(new Error('ripgrep (rg) not found. Please install it: https://github.com/BurntSushi/ripgrep#installation'));
     });

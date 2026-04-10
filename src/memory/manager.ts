@@ -10,11 +10,6 @@ import {
   Episode,
   Fact,
   FileIndex,
-  CodeChunk,
-  Checkpoint,
-  SubagentTask,
-  DocIndex,
-  Pattern,
 } from './schema.js';
 import { CheckpointManager } from '../checkpoint.js';
 import { SubagentManager, SubagentConfig } from '../subagent.js';
@@ -736,7 +731,6 @@ export class MemoryManager {
     if (rows.length < 2) return; // Can't compress single message
 
     // Summarize (in real implementation, use LLM)
-    const content = rows.map(r => `${r.role}: ${r.content}`).join('\n');
     const summary = `[Summarized ${rows.length} messages]`;
 
     // Delete old messages
@@ -784,7 +778,7 @@ export class MemoryManager {
 
   private extractChunks(
     content: string,
-    language?: string
+    _language?: string
   ): Array<{ startLine: number; endLine: number; content: string; chunkType: string; name?: string }> {
     const lines = content.split('\n');
     const chunks: Array<{ startLine: number; endLine: number; content: string; chunkType: string; name?: string }> = [];

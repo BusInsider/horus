@@ -251,7 +251,19 @@ export class KimiClient {
   async complete(
     messages: Message[],
     options?: { maxTokens?: number; temperature?: number }
-  ): Promise<string> {
+  ): Promise<{
+    choices: Array<{
+      message: {
+        content?: string;
+        tool_calls?: ToolCall[];
+      };
+    }>;
+    usage?: {
+      total_tokens: number;
+      prompt_tokens: number;
+      completion_tokens: number;
+    };
+  }> {
     const url = `${this.config.baseUrl}/chat/completions`;
     const body = {
       model: this.config.model,
@@ -283,8 +295,10 @@ export class KimiClient {
       throw new Error(`Kimi API error: ${response.status} ${error}`);
     }
 
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-    return data.choices?.[0]?.message?.content || '';
+    return await response.json() as {
+      choices: Array<{ message: { content?: string; tool_calls?: ToolCall[] } }>;
+      usage?: { total_tokens: number; prompt_tokens: number; completion_tokens: number };
+    };
   }
 
   private async handleError(response: Response): Promise<{ message: string; retryable: boolean }> {

@@ -78,8 +78,8 @@ export async function getAgent(agentId: string): Promise<Agent | null> {
   
   // Try fuzzy match
   for (const agent of agents) {
-    if (agentId.toLowerCase() in agent.id.toLowerCase() ||
-        agentId.toLowerCase() in agent.name.toLowerCase()) {
+    if (agent.id.toLowerCase().includes(agentId.toLowerCase()) ||
+        agent.name.toLowerCase().includes(agentId.toLowerCase())) {
       return agent;
     }
   }

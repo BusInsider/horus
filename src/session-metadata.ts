@@ -1,8 +1,6 @@
 // Session metadata management for named sessions, tags, and export/import
 
 import { promises as fs } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 
@@ -27,8 +25,6 @@ export interface SessionExport {
   exportedAt: number;
   version: string;
 }
-
-const METADATA_DIR = join(homedir(), '.horus', 'sessions');
 
 export class SessionMetadataManager {
   private db: Database.Database;

@@ -4,7 +4,7 @@ import { createGzip } from 'zlib';
 import { promisify } from 'util';
 import { pipeline } from 'stream';
 import { createReadStream, createWriteStream, unlinkSync } from 'fs';
-import { mkdir } from 'fs/promises';
+
 import { join, dirname } from 'path';
 
 const pipelineAsync = promisify(pipeline);

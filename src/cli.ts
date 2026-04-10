@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { loadConfig, getConfigPath } from './config.js';
 import { KimiClient } from './kimi.js';
 import { MemoryManager } from './memory/manager.js';
-import { Agent } from './agent.js';
+import { EnhancedAgent as Agent } from './agent-enhanced.js';
 import { TerminalUI } from './ui/terminal.js';
 import {
   viewTool,
@@ -230,8 +230,8 @@ program
     await memory.initialize();
 
     // Query sessions from database
-    const { Database } = await import('better-sqlite3');
-    const db = new Database(memory['db'].name);
+    const DatabaseModule = await import('better-sqlite3');
+    const db = new DatabaseModule.default(memory['db'].name);
     const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as any[];
     
     if (sessions.length === 0) {

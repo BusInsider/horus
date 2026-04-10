@@ -10,11 +10,11 @@ export interface ErrorContext {
 }
 
 export class HorusError extends Error {
-  public code: string;
+  public code: ErrorCode;
   public context: ErrorContext;
   public originalError?: Error;
 
-  constructor(message: string, code: string, context: ErrorContext, originalError?: Error) {
+  constructor(message: string, code: ErrorCode, context: ErrorContext, originalError?: Error) {
     super(message);
     this.name = 'HorusError';
     this.code = code;
@@ -158,7 +158,7 @@ export class ErrorHandler {
     }
   }
 
-  private async retryWithBackoff(error: HorusError, attempt: number): Promise<{ recovered: boolean }> {
+  private async retryWithBackoff(_error: HorusError, attempt: number): Promise<{ recovered: boolean }> {
     const delay = Math.min(1000 * Math.pow(2, attempt), 30000); // Max 30s
     this.logger.info(`Retrying in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})...`);
     await this.delay(delay);

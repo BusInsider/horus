@@ -28,7 +28,15 @@ import {
   createRecallTool,
   createRememberTool,
   createIndexWorkspaceTool,
+  createSkillListTool,
+  createSkillCreateTool,
+  createSkillViewTool,
+  createSkillDeleteTool,
+  createSkillEvolveTool,
+  createSkillStatsTool,
 } from './tools/index.js';
+import { getSkillRegistry } from './skills/registry.js';
+import { CompiledSkill } from './skills/types.js';
 import { resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { expandHomeDir } from './utils/paths.js';
@@ -187,7 +195,7 @@ program
       }, subagentConfig);
 
       await memory.initialize();
-      subagentConfig.db = (memory as unknown as { db: Database }).db;
+      subagentConfig.db = (memory as unknown as { db: Database.Database }).db;
 
       const tools = new Map([
         // File operations
@@ -221,7 +229,26 @@ program
         ['recall', createRecallTool(memory)],
         ['remember', createRememberTool(memory)],
         ['index', createIndexWorkspaceTool(memory)],
+        
+        // Skill management
+        ['skill_list', createSkillListTool()],
+        ['skill_create', createSkillCreateTool(kimi)],
+        ['skill_view', createSkillViewTool()],
+        ['skill_delete', createSkillDeleteTool()],
+        ['skill_evolve', createSkillEvolveTool(kimi)],
+        ['skill_stats', createSkillStatsTool()],
       ]);
+      
+      // Load skills from registry
+      const skillRegistry = getSkillRegistry();
+      await skillRegistry.initialize();
+      const skills = skillRegistry.getAllTools();
+      for (const skill of skills) {
+        const compiledSkill = skill as CompiledSkill;
+        if (compiledSkill.skillId) {
+          tools.set(compiledSkill.skillId, skill);
+        }
+      }
 
       // Validate and set mode
       let mode: ModeType = 'agent';
@@ -448,7 +475,7 @@ sessionsCmd
     await memory.initialize();
 
     // Access the database directly through memory manager
-    const db = (memory as { db: Database.Database }).db;
+    const db = (memory as unknown as { db: Database.Database }).db;
     const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as SessionRow[];
     
     if (sessions.length === 0) {
@@ -1057,6 +1084,115 @@ ghCmd
       console.log('  export GITHUB_TOKEN=your_token_here');
       console.log('\nOr run: gh auth login');
     }
+  });
+
+// Phase 2: Hibernation commands
+const hibernationCmd = program
+  .command('hibernation')
+  .alias('hib')
+  .description('Agent state management - save, resume, clone');
+
+hibernationCmd
+  .command('list')
+  .description('List all saved agent states')
+  .action(async () => {
+    const { getHibernationManager } = await import('./hibernation.js');
+    
+    const manager = getHibernationManager();
+    await manager.initialize();
+    
+    const checkpoints = await manager.listCheckpoints();
+    
+    if (checkpoints.length === 0) {
+      console.log('No saved agent states');
+    } else {
+      console.log('Saved agent states:\n');
+      for (const cp of checkpoints) {
+        const date = new Date(cp.createdAt).toLocaleString();
+        const size = (cp.size / 1024).toFixed(1);
+        console.log(`${cp.id}  ${date}  ${size}KB  ${cp.description}`);
+        if (cp.tags.length > 0) {
+          console.log(`         Tags: ${cp.tags.join(', ')}`);
+        }
+      }
+    }
+  });
+
+hibernationCmd
+  .command('delete <id>')
+  .description('Delete a saved agent state')
+  .action(async (id) => {
+    const { getHibernationManager } = await import('./hibernation.js');
+    
+    const manager = getHibernationManager();
+    await manager.initialize();
+    
+    const deleted = await manager.deleteCheckpoint(id);
+    if (deleted) {
+      console.log(`✅ Deleted state ${id}`);
+    } else {
+      console.log(`❌ State ${id} not found`);
+    }
+  });
+
+// Phase 2: Swarm commands
+const swarmCmd = program
+  .command('swarm')
+  .description('Multi-agent orchestration');
+
+swarmCmd
+  .command('execute <objective>')
+  .description('Execute a complex objective using multiple agents')
+  .option('-p, --parallel <n>', 'Max parallel agents', '5')
+  .option('-s, --strategy <type>', 'Strategy: hierarchical|flat|mesh', 'hierarchical')
+  .action(async (objective, _options) => {
+    const config = loadConfig();
+    
+    if (!config.provider.apiKey) {
+      console.error('Error: KIMI_API_KEY not set');
+      process.exit(1);
+    }
+    
+    const { KimiClient } = await import('./kimi.js');
+    const { getHibernationManager } = await import('./hibernation.js');
+    const { getSwarmOrchestrator } = await import('./swarm/orchestrator.js');
+    
+    const kimi = new KimiClient({
+      apiKey: config.provider.apiKey,
+      baseUrl: config.provider.baseUrl,
+      model: config.provider.model,
+    });
+    
+    const hibernation = getHibernationManager();
+    await hibernation.initialize();
+    
+    const orchestrator = getSwarmOrchestrator(kimi, hibernation);
+    
+    console.log(`🐝 Swarm executing: ${objective}\n`);
+    
+    try {
+      const result = await orchestrator.execute(objective);
+      
+      console.log('\n✅ Swarm execution complete\n');
+      console.log(`Success: ${result.success}`);
+      console.log(`Subagents: ${result.metrics.totalSubagents}`);
+      console.log(`Messages: ${result.metrics.totalMessages}`);
+      console.log(`Parallel groups: ${result.metrics.parallelExecutions}`);
+      console.log(`Execution time: ${(result.metrics.totalExecutionTime / 1000).toFixed(1)}s\n`);
+      
+      console.log('Result:');
+      console.log(result.aggregatedOutput);
+    } catch (error) {
+      console.error('❌ Swarm execution failed:', (error as Error).message);
+    }
+  });
+
+swarmCmd
+  .command('status')
+  .description('Show current swarm state')
+  .action(async () => {
+    console.log('Swarm status: Not in an active swarm session');
+    console.log('Use "horus swarm execute <objective>" to start one');
   });
 
 program.parse();

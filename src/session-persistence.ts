@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import { expandHomeDir } from './utils/paths.js';
+
 import { Logger } from './utils/logger.js';
 
 export interface SessionCheckpoint {
@@ -32,7 +32,7 @@ export interface AutoSaveConfig {
 export class SessionPersistence {
   private config: AutoSaveConfig;
   private logger: Logger;
-  private currentSessionId?: string;
+
   private saveInterval?: NodeJS.Timeout;
   private lastCheckpoint?: SessionCheckpoint;
 
@@ -61,7 +61,7 @@ export class SessionPersistence {
   startAutoSave(sessionId: string, getState: () => Partial<SessionCheckpoint>): void {
     if (!this.config.enabled) return;
 
-    this.currentSessionId = sessionId;
+
     
     this.saveInterval = setInterval(async () => {
       try {

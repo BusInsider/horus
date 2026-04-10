@@ -16,7 +16,7 @@ Supports basic arithmetic, scientific functions, and complex expressions.`,
     required: ['expression'],
   },
 
-  async execute(args: { expression: string }, context: ToolContext): Promise<ToolResult> {
+  async execute(args: { expression: string }, _context: ToolContext): Promise<ToolResult> {
     try {
       // Whitelist allowed characters for safety
       const allowed = /^[0-9+\-*/().\s^%!&|<>==sinocstalgqrpePIE\[\],]+$/;

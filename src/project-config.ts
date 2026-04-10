@@ -3,7 +3,7 @@
 
 import { promises as fs } from 'fs';
 import { join, resolve } from 'path';
-import { loadConfig, Config } from './config.js';
+import { type Config } from './config.js';
 
 export interface ProjectConfig extends Partial<Config> {
   // Project-specific overrides

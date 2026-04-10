@@ -156,7 +156,6 @@ export class Doctor {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const is401 = message.includes('401') || message.includes('Invalid Authentication');
-      const isChinaEndpoint = config.provider.baseUrl.includes('.cn');
       
       let fix = 'Check API key and network connection';
       if (is401) {

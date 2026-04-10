@@ -1,6 +1,6 @@
 // Grep tool - Search file contents with regex
 import { promises as fs } from 'fs';
-import { join, isAbsolute } from 'path';
+import { join, isAbsolute, relative } from 'path';
 import { Tool, ToolContext, ToolResult } from './types.js';
 
 export const grepTool: Tool = {
@@ -28,7 +28,33 @@ Use this to find specific code patterns, function definitions, imports, etc.`,
   },
 
   async execute(args: { pattern: string; path: string; filePattern?: string }, context: ToolContext): Promise<ToolResult> {
+    // Security: Validate pattern to prevent ReDoS
+    if (args.pattern.length > 1000) {
+      return {
+        ok: false,
+        error: 'Pattern too long (max 1000 characters)',
+      };
+    }
+
+    // Security: Validate filePattern
+    if (args.filePattern && args.filePattern.length > 100) {
+      return {
+        ok: false,
+        error: 'File pattern too long (max 100 characters)',
+      };
+    }
+
     const targetPath = isAbsolute(args.path) ? args.path : join(context.cwd, args.path);
+
+    // Security: Ensure path is within working directory
+    const resolvedPath = isAbsolute(args.path) ? args.path : join(context.cwd, args.path);
+    const relativePath = relative(context.cwd, resolvedPath);
+    if (relativePath.startsWith('..')) {
+      return {
+        ok: false,
+        error: 'Path must be within working directory',
+      };
+    }
 
     try {
       const stats = await fs.stat(targetPath);

@@ -99,7 +99,6 @@ Use with caution - destructive commands may require confirmation.`,
     let lastYieldedLength = 0;
     const yieldInterval = setInterval(() => {
       if (combinedOutput.length > lastYieldedLength) {
-        const newContent = combinedOutput.slice(lastYieldedLength);
         // We can't actually yield from here, so we rely on the main loop
         lastYieldedLength = combinedOutput.length;
       }
@@ -178,22 +177,49 @@ async function runCommand(
 
 function checkDangerousCommand(command: string): { dangerous: boolean; reason?: string } {
   const lower = command.toLowerCase();
+  const normalized = lower.replace(/\s+/g, ' ').trim();
 
-  // Block list
+  // Block list - more comprehensive
   const dangerous = [
+    // System destruction
     { pattern: /rm\s+-rf\s*\/\s*/, reason: 'System-wide deletion' },
-    { pattern: /dd\s+if=\/dev\/zero/, reason: 'Disk destruction' },
+    { pattern: /rm\s+-rf\s+\/\w+/, reason: 'Root directory deletion' },
+    { pattern: /dd\s+if=\/dev\/(zero|null|urandom|random)/, reason: 'Disk destruction' },
+    { pattern: /dd\s+of=\/dev\/[sh]d[a-z]/, reason: 'Direct disk write' },
     { pattern: /mkfs\./, reason: 'Filesystem formatting' },
-    { pattern: />\s*\/dev\/[sh]da/, reason: 'Direct disk write' },
-    { pattern: /curl\s+.*\s*\|\s*sh/, reason: 'Piped shell execution' },
-    { pattern: /wget\s+.*\s*\|\s*sh/, reason: 'Piped shell execution' },
+    { pattern: />\s*\/dev\/[sh]d[a-z]/, reason: 'Direct disk write' },
     { pattern: /:\(\)\s*\{\s*:\|\:\s*\}&/, reason: 'Fork bomb' },
+    { pattern: /:.{0,5}\(\)\s*\{.*:.*\|.*:.*\}&/, reason: 'Fork bomb variant' },
+    
+    // Arbitrary code execution
+    { pattern: /curl\s+[^|]+\|\s*(sh|bash|zsh)/, reason: 'Piped shell execution' },
+    { pattern: /wget\s+[^|]+\|\s*(sh|bash|zsh)/, reason: 'Piped shell execution' },
+    { pattern: /curl\s+.*\s+-o\s*\|\s*(sh|bash)/, reason: 'Piped shell execution' },
+    { pattern: /eval\s*\$/, reason: 'Dynamic evaluation' },
+    { pattern: /bash\s+-c\s*["'].*curl/, reason: 'Nested shell with download' },
+    
+    // Permission escalation
+    { pattern: /chmod\s+.*777\s*\//, reason: 'Wide permission change on root' },
+    { pattern: /chmod\s+-R\s+777\s*\//, reason: 'Recursive wide permission change' },
+    
+    // Sensitive file access (only outside working dir would be checked elsewhere)
+    { pattern: /cat\s+.*\/etc\/shadow/, reason: 'Password file access' },
+    { pattern: /cat\s+.*\/etc\/passwd/, reason: 'System file access' },
+    { pattern: /cat\s+.*\/etc\/ssh/, reason: 'SSH key access' },
   ];
 
   for (const d of dangerous) {
-    if (d.pattern.test(lower)) {
+    if (d.pattern.test(normalized)) {
       return { dangerous: true, reason: d.reason };
     }
+  }
+
+  // Additional check: commands starting with sudo or su
+  if (/^(sudo|su)\s/.test(normalized)) {
+    return { 
+      dangerous: true, 
+      reason: 'Privilege escalation detected - sudo/su not allowed' 
+    };
   }
 
   return { dangerous: false };

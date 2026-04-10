@@ -1,6 +1,6 @@
 // File operations - Simple file utilities
 import { promises as fs } from 'fs';
-import { join, isAbsolute, dirname } from 'path';
+import { join, isAbsolute } from 'path';
 import { Tool, ToolContext, ToolResult } from './types.js';
 
 export const catTool: Tool = {

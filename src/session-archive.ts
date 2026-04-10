@@ -87,7 +87,6 @@ export class SessionArchiver {
     const json = JSON.stringify(exportData, null, 2);
     await fs.writeFile(filepath, json, 'utf-8');
 
-    let finalPath = filepath;
     let bytes = json.length;
 
     // Compress if enabled
@@ -95,7 +94,6 @@ export class SessionArchiver {
       const gzippedPath = `${filepath}.gz`;
       await this.compressFile(filepath, gzippedPath);
       await fs.unlink(filepath);
-      finalPath = gzippedPath;
       
       const stats = await fs.stat(gzippedPath);
       bytes = stats.size;

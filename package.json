@@ -1,6 +1,6 @@
 {
   "name": "horus-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kimi-native autonomous coding agent with sophisticated memory",
   "main": "dist/index.js",
   "bin": {

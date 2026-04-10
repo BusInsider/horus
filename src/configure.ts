@@ -2,7 +2,6 @@
 // Interactive setup, validation, and management
 
 import { promises as fs } from 'fs';
-import { resolve } from 'path';
 import readline from 'readline';
 import { loadConfig, saveConfig, Config, getConfigPath } from './config.js';
 import { expandHomeDir } from './utils/paths.js';
@@ -154,14 +153,15 @@ export async function testApiConnection(config?: Config): Promise<boolean> {
       { role: 'user', content: 'Say "Horus connection test successful" and nothing else.' }
     ], { maxTokens: 20 });
 
-    if (response.toLowerCase().includes('successful') || response.toLowerCase().includes('horus')) {
+    const content = response.choices[0]?.message?.content || '';
+    if (content.toLowerCase().includes('successful') || content.toLowerCase().includes('horus')) {
       console.log(chalk.green('✅ API connection successful!'));
       console.log(`   Model: ${cfg.provider.model}`);
-      console.log(`   Response: ${response.trim()}\n`);
+      console.log(`   Response: ${content.trim()}\n`);
       return true;
     } else {
       console.log(chalk.yellow('⚠️  Unexpected response from API:'));
-      console.log(`   ${response}\n`);
+      console.log(`   ${content}\n`);
       return false;
     }
   } catch (error) {
@@ -257,8 +257,6 @@ export async function resetConfiguration(): Promise<void> {
 export async function configureMcp(): Promise<void> {
   console.log(chalk.blue('\n🔌 MCP Server Configuration\n'));
   console.log('MCP (Model Context Protocol) allows connecting to external tool servers.\n');
-
-  const config = loadConfig();
 
   // This is a placeholder - MCP config would be added to config structure
   console.log('Example MCP servers you can add:');

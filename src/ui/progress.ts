@@ -13,16 +13,14 @@ export class ProgressBar {
   private options: ProgressOptions;
   private current = 0;
   private startTime: number;
-  private logger: Logger;
 
-  constructor(options: ProgressOptions, logger?: Logger) {
+  constructor(options: ProgressOptions, _logger?: Logger) {
     this.options = {
       showPercent: true,
       showETA: true,
       ...options,
     };
     this.startTime = Date.now();
-    this.logger = logger || new Logger('progress');
   }
 
   update(current: number, message?: string): void {

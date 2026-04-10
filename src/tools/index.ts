@@ -25,6 +25,19 @@ export { mathTool } from './math.js';
 // Memory
 export { createRecallTool, createRememberTool, createIndexWorkspaceTool } from './memory.js';
 
+// Skill management
+export {
+  createSkillListTool,
+  createSkillCreateTool,
+  createSkillViewTool,
+  createSkillDeleteTool,
+  createSkillEvolveTool,
+  createSkillStatsTool,
+} from './skill.js';
+
 // Types and utilities
 export { createToolDefinition, Tool, ToolContext, ToolResult } from './types.js';
 export { ToolOrchestrator, ToolClassification, ToolCall as InternalToolCall } from './orchestrator.js';
+
+// Tool batching
+export { ToolBatcher, BatchedCall, Batch, BatchResult, getToolBatcher } from './batcher.js';

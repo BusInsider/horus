@@ -303,6 +303,202 @@ See `TODO.md` for full details. Key items:
 
 ---
 
+## Skill System (NEW)
+
+Horus now supports **dynamic skill generation** - AI-created tools that can be saved, versioned, and shared.
+
+### Architecture
+
+```
+┌─────────────────┐     ┌─────────────┐     ┌──────────────┐
+│  User Request   │────▶│  Generator  │────▶│  Kimi API    │
+│  "Create CSV    │     │  (AI code   │     │  (generates  │
+│   parser"       │     │   gen)      │     │   JS code)   │
+└─────────────────┘     └─────────────┘     └──────────────┘
+                                                      │
+                              ┌───────────────────────┘
+                              ▼
+                       ┌─────────────┐
+                       │   Skill     │
+                       │  (manifest  │
+                       │  + code)    │
+                       └──────┬──────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        ┌──────────┐   ┌──────────┐   ┌──────────┐
+        │ Registry │   │   Disk   │   │  Agent   │
+        │ (memory) │   │ (~/.horus│   │ (tools   │
+        │          │   │ /skills) │   │  map)    │
+        └──────────┘   └──────────┘   └──────────┘
+```
+
+### Key Components
+
+1. **SkillGenerator** (`src/skills/generator.ts`)
+   - Uses Kimi API to generate JS code from natural language
+   - Validates generated code for safety
+   - Handles skill evolution (version bumps)
+
+2. **SkillRegistry** (`src/skills/registry.ts`)
+   - Manages skill lifecycle
+   - Loads from `~/.horus/skills/{builtin,user,community}/`
+   - Compiles skills to Tool interface
+   - Tracks usage statistics
+
+3. **Skill Tools** (`src/tools/skill.ts`)
+   - `skill_create` - Generate new skill
+   - `skill_list` - List available skills
+   - `skill_view` - Inspect skill details
+   - `skill_delete` - Remove user skills
+   - `skill_evolve` - Improve existing skill
+   - `skill_stats` - Usage statistics
+
+### Directory Structure
+
+```
+~/.horus/skills/
+├── builtin/
+│   └── csv_parser/              # Example built-in
+│       ├── manifest.json        # {id, name, version, tags, ...}
+│       └── skill.js             # {parameters, execute: "..."}
+├── user/                        # AI/user created (persistent)
+└── community/                   # Downloaded/shared
+```
+
+### Example Skill
+
+**manifest.json:**
+```json
+{
+  "id": "csv_parser",
+  "name": "CSV Parser",
+  "description": "Parse CSV strings into structured data",
+  "version": "1.0.0",
+  "author": "horus-builtin",
+  "tags": ["data", "parsing"],
+  "permissions": []
+}
+```
+
+**skill.js:**
+```json
+{
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "csv": { "type": "string", "description": "CSV to parse" }
+    },
+    "required": ["csv"]
+  },
+  "execute": "const lines = args.csv.split('\\n'); ... return result;"
+}
+```
+
+### Security
+
+- Code validated for dangerous patterns (eval, new Function, require)
+- Sandboxed execution (no direct fs/process access)
+- Permissions system for capability tracking
+- Safe mode option for extra validation
+
+---
+
+## Phase 2: Advanced Features (NEW)
+
+### Tool Call Batching (MoE Optimization)
+
+Groups parallel tool calls by semantic similarity for Kimi's MoE architecture.
+
+**Location:** `src/tools/batcher.ts`
+
+```typescript
+// Semantic clusters
+filesystem: ['view', 'edit', 'cat', 'ls', 'mkdir', 'rm', 'glob', 'grep']
+network: ['fetch']
+git: ['git_status', 'git_diff', 'git_log']
+data: ['json_parse', 'json_format', 'math']
+memory: ['recall', 'remember', 'index']
+skills: ['skill_list', 'skill_create', ...]
+
+// Usage
+const batcher = getToolBatcher();
+const batches = batcher.batchCalls(calls);
+const results = await batcher.executeBatches(batches, context);
+```
+
+Features:
+- Dependency resolution (topological sort)
+- Parallel execution within batches
+- MoE-optimized batch sizing
+- Usage statistics
+
+---
+
+### Hibernation Architecture
+
+Save and resume complete agent state.
+
+**Location:** `src/hibernation.ts`
+
+**Storage:** `~/.horus/hibernation/`
+
+```typescript
+// Checkpoint current state
+const checkpoint = await hibernation.checkpoint(state, memory);
+
+// Restore later
+const { state, memoryData } = await hibernation.restore(checkpointId);
+
+// Clone for MCTS exploration
+const clone = await hibernation.clone(parentId, {
+  inheritMemory: true,
+  branchTag: 'exploration-1',
+  explorationParams: { temperature: 0.8 }
+});
+```
+
+CLI Commands:
+```bash
+horus hibernation list          # List saved states
+horus hibernation delete <id>   # Delete a state
+```
+
+---
+
+### Agent Swarm (PARL)
+
+Multi-agent orchestration for complex tasks.
+
+**Location:** 
+- `src/swarm/orchestrator.ts` - Main orchestrator
+- `src/swarm/subagent.ts` - Individual subagent
+- `src/swarm/types.ts` - Type definitions
+
+**PARL Pattern:**
+1. **Planning** - Decompose objective into subtasks
+2. **Acting** - Execute subagents in parallel groups
+3. **Reflecting** - Coordinate and resolve conflicts
+4. **Learning** - Synthesize results
+
+```typescript
+const orchestrator = new SwarmOrchestrator(kimi, hibernation);
+const result = await orchestrator.execute("Complex objective");
+```
+
+CLI Commands:
+```bash
+horus swarm execute "Implement a REST API with auth and tests"
+horus swarm status
+```
+
+**Configuration:**
+- Strategy: hierarchical | flat | mesh
+- Max parallel subagents: configurable
+- Conflict resolution: orchestrator_decides | voting | priority
+
+---
+
 ## Contact/Context
 
 - This project was built to learn from Claude Code architecture

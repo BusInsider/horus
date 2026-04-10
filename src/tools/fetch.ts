@@ -29,7 +29,7 @@ Supports GET, POST, PUT, DELETE methods with optional headers and body.`,
     required: ['url'],
   },
 
-  async execute(args: { url: string; method?: string; headers?: Record<string, string>; body?: string }, context: ToolContext): Promise<ToolResult> {
+  async execute(args: { url: string; method?: string; headers?: Record<string, string>; body?: string }, _context: ToolContext): Promise<ToolResult> {
     try {
       const response = await fetch(args.url, {
         method: args.method || 'GET',

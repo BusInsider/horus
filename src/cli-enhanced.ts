@@ -152,7 +152,7 @@ program
   .description('Start an interactive chat session')
   .option('-r, --resume <sessionId>', 'Resume a previous session')
   .option('-p, --plan', 'Enable plan mode')
-  .option('-m, --mode <mode>', 'Mode: instant|thinking|agent|swarm (default: agent)')
+  .option('-m, --mode <mode>', 'Mode: fast|balanced|thorough|swarm (default: balanced). Legacy: instant|thinking|agent')
   .option('--show-thinking', 'Display reasoning_content (thinking mode)')
   .option('-n, --name <name>', 'Name this session for later reference')
   .option('--tag <tags>', 'Comma-separated tags for this session')

@@ -419,10 +419,11 @@ export class EnhancedAgent {
 
     // Get mode configuration
     const modeConfig = this.modeController.getConfig();
-    const effectiveTools = modeConfig.toolsEnabled ? toolDefinitions : [];
+    // Tools are ALWAYS enabled in all modes - the harness never kneecaps the agent
+    const effectiveTools = toolDefinitions;
 
     console.log(chalk.gray(`[Calling API with ${contextMessages.length} messages...]`));
-    console.log(chalk.gray(`[Mode: ${modeConfig.name}, Session: ${this.kimi.getSessionId().slice(0, 8)}...]`));
+    console.log(chalk.gray(`[Mode: ${modeConfig.name}, Temp: ${modeConfig.temperature}, Tools: ${effectiveTools.length} enabled]`));
 
     let doneHandled = false;
     try {

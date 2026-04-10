@@ -38,7 +38,7 @@ export const MODE_CONFIGS: Record<ModeType, ModeConfig> = {
   balanced: {
     name: 'Balanced',
     description: 'Standard agent mode with full tool access - the default',
-    temperature: 1.0,
+    temperature: 0.8,
     topP: 0.95,
     thinking: { type: 'enabled' },
     toolsEnabled: true,

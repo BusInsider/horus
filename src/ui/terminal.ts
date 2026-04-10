@@ -24,7 +24,9 @@ export class TerminalUI {
     console.log(chalk.blue(`\n┌─ Horus Session Started ─┐`));
     console.log(chalk.gray(`│ Session: ${sessionId.slice(0, 8)}`));
     console.log(chalk.gray(`│ Working: ${cwd}`));
-    console.log(chalk.blue(`└─────────────────────────┘\n`));
+    console.log(chalk.blue(`└─────────────────────────┘`));
+    console.log(chalk.gray('\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, exit'));
+    console.log(chalk.gray('Tools always available - use /mode to adjust speed/cost\n'));
   }
 
   showSessionEnd(): void {

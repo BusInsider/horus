@@ -250,15 +250,17 @@ program
         }
       }
 
-      // Validate and set mode
-      let mode: ModeType = 'agent';
+      // Validate and set mode (with backwards compatibility)
+      let mode: ModeType = 'balanced';
       if (options.mode) {
-        const validModes: ModeType[] = ['instant', 'thinking', 'agent', 'swarm'];
-        if (!validModes.includes(options.mode)) {
-          console.error(`Error: Invalid mode "${options.mode}". Valid modes: ${validModes.join(', ')}`);
+        try {
+          mode = ModeController.validateMode(options.mode);
+        } catch (error) {
+          console.error(`Error: ${error instanceof Error ? error.message : 'Invalid mode'}`);
+          console.error(`Available modes: fast, balanced, thorough, swarm`);
+          console.error(`(Legacy names also work: instant, thinking, agent)`);
           process.exit(1);
         }
-        mode = options.mode;
       }
       
       const modeController = new ModeController();
@@ -278,7 +280,8 @@ program
 
       const modeConfig = modeController.getConfig();
       console.log(chalk.blue('\n🧠 Horus is ready. Type your task or "exit" to quit.\n'));
-      console.log(chalk.gray(`Mode: ${modeConfig.name} | Temperature: ${modeConfig.temperature} | Tools: ${modeConfig.toolsEnabled ? 'enabled' : 'disabled'}\n`));
+      console.log(chalk.gray(`Mode: ${modeConfig.name} | Temp: ${modeConfig.temperature} | Tools: always enabled | Latency: ${modeConfig.latency}\n`));
+      console.log(chalk.gray(`Tip: Use /mode <fast|balanced|thorough|swarm> to switch modes\n`));
       if (options.plan) {
         console.log(chalk.yellow('📋 Plan mode enabled\n'));
       }
@@ -317,6 +320,31 @@ program
           if (input.startsWith('/plan')) {
             // Return plan command for the agent to handle
             return input;
+          }
+
+          if (input.startsWith('/mode')) {
+            const args = input.slice(5).trim().split(' ').filter(Boolean);
+            if (args.length === 0) {
+              const currentMode = modeController.getConfig();
+              ui.writeLine(`\nCurrent mode: ${currentMode.name}`);
+              ui.writeLine(`Description: ${currentMode.description}`);
+              ui.writeLine(`\nAvailable modes:`);
+              for (const { type, config } of ModeController.getAvailableModes()) {
+                ui.writeLine(`  ${type.padEnd(10)} - ${config.useCase}`);
+              }
+              ui.writeLine(`\nUsage: /mode <fast|balanced|thorough|swarm>`);
+            } else {
+              try {
+                const newMode = ModeController.validateMode(args[0]);
+                modeController.setMode(newMode);
+                const config = modeController.getConfig();
+                ui.writeLine(`\n✅ Switched to ${config.name} mode`);
+                ui.writeLine(`   ${config.description}`);
+              } catch (error) {
+                ui.writeLine(`\n❌ Error: ${error instanceof Error ? error.message : 'Invalid mode'}`);
+              }
+            }
+            return '';
           }
 
           return input;

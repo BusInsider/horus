@@ -1,7 +1,7 @@
-// Kimi-native mode controller - Four modes: instant, thinking, agent, swarm
-// Optimized for Kimi K2.5's MoE architecture and pricing tiers
+// Kimi-native mode controller - Refined for always-available tooling
+// All modes have tool access; differences are in temperature, latency, and parallelism
 
-export type ModeType = 'instant' | 'thinking' | 'agent' | 'swarm';
+export type ModeType = 'fast' | 'balanced' | 'thorough' | 'swarm';
 
 export interface ModeConfig {
   name: string;
@@ -9,41 +9,35 @@ export interface ModeConfig {
   temperature: number;
   topP: number;
   thinking: { type: 'enabled' | 'disabled' };
-  toolsEnabled: boolean;
+  toolsEnabled: boolean; // Always true now, kept for compatibility
   maxTokens: number;
   costPerMInput: number;
   costPerMOutput: number;
   useCase: string;
+  /** Whether to automatically show reasoning_content to user */
+  showThinking: boolean;
+  /** Expected latency tier */
+  latency: 'low' | 'medium' | 'high';
 }
 
 export const MODE_CONFIGS: Record<ModeType, ModeConfig> = {
-  instant: {
-    name: 'Instant',
-    description: 'Quick responses with minimal latency',
+  fast: {
+    name: 'Fast',
+    description: 'Quick responses with deterministic output - tools always available',
     temperature: 0.6,
     topP: 0.95,
     thinking: { type: 'disabled' },
-    toolsEnabled: false,
+    toolsEnabled: true, // ALWAYS true - never kneecap the agent
     maxTokens: 2000,
     costPerMInput: 0.60,
     costPerMOutput: 2.50,
-    useCase: 'Simple Q&A, code explanation, quick lookups',
+    useCase: 'Quick edits, file lookups, simple automation (cheap & fast)',
+    showThinking: false,
+    latency: 'low',
   },
-  thinking: {
-    name: 'Thinking',
-    description: 'Complex reasoning with chain-of-thought',
-    temperature: 1.0,
-    topP: 0.95,
-    thinking: { type: 'enabled' },
-    toolsEnabled: false,
-    maxTokens: 4000,
-    costPerMInput: 0.60, // Same pricing, just different mode
-    costPerMOutput: 2.50,
-    useCase: 'Problem decomposition, novel solutions, deep analysis',
-  },
-  agent: {
-    name: 'Agent',
-    description: 'Multi-tool workflows with reasoning',
+  balanced: {
+    name: 'Balanced',
+    description: 'Standard agent mode with full tool access - the default',
     temperature: 1.0,
     topP: 0.95,
     thinking: { type: 'enabled' },
@@ -51,11 +45,27 @@ export const MODE_CONFIGS: Record<ModeType, ModeConfig> = {
     maxTokens: 4000,
     costPerMInput: 0.60,
     costPerMOutput: 2.50,
-    useCase: 'File operations, code editing, multi-step tasks (default)',
+    useCase: 'Code editing, debugging, multi-step tasks (default)',
+    showThinking: false,
+    latency: 'medium',
+  },
+  thorough: {
+    name: 'Thorough',
+    description: 'Deep reasoning with visible thinking - tools always available',
+    temperature: 1.0,
+    topP: 0.95,
+    thinking: { type: 'enabled' },
+    toolsEnabled: true,
+    maxTokens: 4000,
+    costPerMInput: 0.60,
+    costPerMOutput: 2.50,
+    useCase: 'Complex refactoring, architecture decisions, novel problems',
+    showThinking: true,
+    latency: 'medium',
   },
   swarm: {
     name: 'Swarm',
-    description: 'Parallel sub-agent execution',
+    description: 'Parallel sub-agent execution for complex objectives',
     temperature: 1.0,
     topP: 0.95,
     thinking: { type: 'enabled' },
@@ -63,15 +73,36 @@ export const MODE_CONFIGS: Record<ModeType, ModeConfig> = {
     maxTokens: 4000,
     costPerMInput: 0.60,
     costPerMOutput: 2.50,
-    useCase: 'Batch processing, multi-domain research, parallel exploration',
+    useCase: 'Large tasks, multi-file refactoring, exploration',
+    showThinking: false,
+    latency: 'high',
   },
 };
 
-export class ModeController {
-  private currentMode: ModeType = 'agent';
+// Legacy mode mappings for backwards compatibility
+const LEGACY_MODE_MAP: Record<string, ModeType> = {
+  'instant': 'fast',
+  'thinking': 'thorough',
+  'agent': 'balanced',
+  'swarm': 'swarm',
+};
 
-  setMode(mode: ModeType): void {
-    this.currentMode = mode;
+export class ModeController {
+  private currentMode: ModeType = 'balanced';
+
+  setMode(mode: ModeType | string): void {
+    // Handle legacy mode names
+    if (mode in LEGACY_MODE_MAP) {
+      mode = LEGACY_MODE_MAP[mode];
+    }
+    
+    if (!(mode in MODE_CONFIGS)) {
+      throw new Error(
+        `Invalid mode: ${mode}. Available modes: ${Object.keys(MODE_CONFIGS).join(', ')}`
+      );
+    }
+    
+    this.currentMode = mode as ModeType;
   }
 
   getMode(): ModeType {
@@ -82,8 +113,12 @@ export class ModeController {
     return MODE_CONFIGS[this.currentMode];
   }
 
+  /**
+   * Tools are ALWAYS enabled in all modes.
+   * This method is kept for API compatibility.
+   */
   isToolEnabled(): boolean {
-    return MODE_CONFIGS[this.currentMode].toolsEnabled;
+    return true; // Always true - tools are never disabled
   }
 
   getTemperature(): number {
@@ -94,15 +129,37 @@ export class ModeController {
     return MODE_CONFIGS[this.currentMode].thinking;
   }
 
+  /**
+   * Whether to show reasoning_content to user.
+   * This is different from whether thinking is enabled in the API.
+   */
   shouldShowThinking(): boolean {
-    return MODE_CONFIGS[this.currentMode].thinking.type === 'enabled';
+    return MODE_CONFIGS[this.currentMode].showThinking;
   }
 
+  /**
+   * Estimate cost for a given token usage
+   */
   estimateCost(inputTokens: number, outputTokens: number): number {
     const config = this.getConfig();
     const inputCost = (inputTokens / 1_000_000) * config.costPerMInput;
     const outputCost = (outputTokens / 1_000_000) * config.costPerMOutput;
     return inputCost + outputCost;
+  }
+
+  /**
+   * Get estimated latency tier for this mode
+   */
+  getLatency(): 'low' | 'medium' | 'high' {
+    return MODE_CONFIGS[this.currentMode].latency;
+  }
+
+  /**
+   * Get a user-friendly description of current mode
+   */
+  getStatusLine(): string {
+    const config = this.getConfig();
+    return `${config.name} mode | Temp: ${config.temperature} | Tools: enabled | Latency: ${config.latency}`;
   }
 
   static getAvailableModes(): Array<{ type: ModeType; config: ModeConfig }> {
@@ -113,12 +170,25 @@ export class ModeController {
   }
 
   static validateMode(mode: string): ModeType {
+    // Check legacy names first
+    if (mode in LEGACY_MODE_MAP) {
+      return LEGACY_MODE_MAP[mode];
+    }
+    
     if (mode in MODE_CONFIGS) {
       return mode as ModeType;
     }
+    
     throw new Error(
       `Invalid mode: ${mode}. Available modes: ${Object.keys(MODE_CONFIGS).join(', ')}`
     );
+  }
+
+  /**
+   * Get all valid mode names including legacy aliases
+   */
+  static getAllModeNames(): string[] {
+    return [...Object.keys(MODE_CONFIGS), ...Object.keys(LEGACY_MODE_MAP)];
   }
 }
 
@@ -132,6 +202,30 @@ export function getModeController(): ModeController {
   return globalModeController;
 }
 
-export function setGlobalMode(mode: ModeType): void {
+export function setGlobalMode(mode: ModeType | string): void {
   getModeController().setMode(mode);
+}
+
+/**
+ * Auto-detect the best mode for a given user input.
+ * This is a simple heuristic - can be expanded with ML in the future.
+ */
+export function suggestMode(input: string): ModeType {
+  const lower = input.toLowerCase();
+  
+  // Simple heuristics
+  const isQuickLookup = /^(find|show|get|list|cat|ls|grep|search)\b/.test(lower);
+  const isComplexTask = /(refactor|implement|create|add|fix|debug|analyze)\b/.test(lower) 
+    && input.length > 50;
+  const isMultiFile = /\b(all files|every file|project.?(wide|level)|multiple files)\b/.test(lower);
+  
+  if (isQuickLookup && !isComplexTask) {
+    return 'fast';
+  }
+  
+  if (isMultiFile || input.length > 200) {
+    return 'swarm';
+  }
+  
+  return 'balanced';
 }

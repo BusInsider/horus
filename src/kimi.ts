@@ -260,7 +260,7 @@ export class KimiClient {
 
   async complete(
     messages: Message[],
-    options?: { maxTokens?: number; temperature?: number }
+    options?: { maxTokens?: number; temperature?: number; responseFormat?: { type: string } }
   ): Promise<{
     choices: Array<{
       message: {
@@ -275,13 +275,27 @@ export class KimiClient {
     };
   }> {
     const url = `${this.config.baseUrl}/chat/completions`;
-    const body = {
-      model: this.config.model,
+    
+    // Map model names for kimi-for-coding endpoint (same as stream())
+    let modelName = this.config.model;
+    if (this.config.baseUrl.includes('api.kimi.com')) {
+      const codingEndpointModels = ['kimi-k2-5', 'kimi-k2-6', 'kimi-k2-6-preview', 'kimi-k2-turbo-preview', 'kimi-latest'];
+      if (codingEndpointModels.includes(modelName)) {
+        modelName = 'kimi-for-coding';
+      }
+    }
+    
+    const body: any = {
+      model: modelName,
       messages,
       stream: false,
       temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 500,
+      max_tokens: options?.maxTokens ?? 4000,
     };
+    
+    if (options?.responseFormat) {
+      body.response_format = options.responseFormat;
+    }
 
     // Determine User-Agent based on endpoint
     const isKimiCoding = this.config.baseUrl.includes('api.kimi.com');

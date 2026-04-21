@@ -883,13 +883,20 @@ export class EnhancedAgent {
 
 Task: ${objective}
 
+Available tools and their usage:
+- view: Read files/directories. Args: { path: string }
+- edit: Create or modify files. Args: { path: string, oldString: string, newString: string }. Use oldString: "" to create new files.
+- bash: Execute shell commands. Args: { command: string }
+- search: Search code with ripgrep. Args: { pattern: string, path?: string }
+- glob: Find files matching patterns. Args: { pattern: string }
+
 Create a plan with:
 1. 3-10 specific steps
-2. Each step uses ONE tool only
-3. Mark critical steps that need checkpoints
+2. Each step uses ONE tool only (must be from the available tools above)
+3. Mark critical steps that need checkpoints (major file changes, structural changes)
 4. Include estimated token usage
 
-Return JSON:
+Return ONLY valid JSON (no markdown fences):
 {
   "steps": [
     {"id": "1", "description": "...", "tool": "view", "args": {...}, "checkpoint": true}
@@ -897,12 +904,23 @@ Return JSON:
   "estimatedTokens": 15000
 }`;
 
-    const response = await this.kimi.complete([
-      { role: 'user', content: prompt }
-    ]);
+    const response = await this.kimi.complete(
+      [{ role: 'user', content: prompt }],
+      { responseFormat: { type: 'json_object' }, temperature: 0.3 }
+    );
 
+    let content = response.choices[0]?.message?.content || '';
+    
+    // Strip markdown code fences if present
+    content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
+    
+    // Try to extract JSON if there's extra text
+    if (!content.startsWith('{')) {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) content = jsonMatch[0];
+    }
+    
     try {
-      const content = response.choices[0]?.message?.content || '';
       const parsed = JSON.parse(content);
       return {
         objective,

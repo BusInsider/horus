@@ -38,7 +38,7 @@ import {
 import { getSkillRegistry } from './skills/registry.js';
 import { CompiledSkill } from './skills/types.js';
 import { resolve } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { expandHomeDir } from './utils/paths.js';
 import { SubagentConfig } from './subagent.js';
@@ -750,9 +750,10 @@ program
   .command('eval')
   .description('Run the Horus evaluation suite')
   .option('--quick', 'Run quick eval set (9 tasks, ~5 min)')
-  .option('--full', 'Run full eval suite (17 tasks, ~15 min)')
+  .option('--full', 'Run full eval suite (20+ tasks, ~15 min)')
   .option('--task <name>', 'Run a specific eval task')
   .option('--list', 'List available eval tasks')
+  .option('--report [path]', 'Run full suite and generate markdown report')
   .action(async (options) => {
     const projectRoot = resolve(__dirname, '..');
     const runnerPath = resolve(projectRoot, 'scripts', 'eval-runner.js');
@@ -760,6 +761,39 @@ program
     if (!existsSync(runnerPath)) {
       console.error(chalk.red('Eval runner not found. Expected:'), runnerPath);
       process.exit(1);
+    }
+
+    // Report mode: run full suite, save to temp, generate markdown
+    if (options.report !== undefined) {
+      const tmpResults = resolve(projectRoot, 'evals', 'results-report.json');
+      const suiteArg = options.quick ? '--quick' : '--full';
+      console.log(chalk.blue('\n🧪 Running eval suite for report...\n'));
+      try {
+        execSync(`node "${runnerPath}" ${suiteArg} --output "${tmpResults}"`, {
+          cwd: projectRoot,
+          stdio: 'inherit',
+        });
+      } catch {
+        // Suite may have failures; we still want the report
+      }
+
+      if (!existsSync(tmpResults)) {
+        console.error(chalk.red('No results generated'));
+        process.exit(1);
+      }
+
+      const data = JSON.parse(readFileSync(tmpResults, 'utf-8'));
+      const report = generateEvalReport(data);
+
+      const reportPath = typeof options.report === 'string' ? options.report : resolve(projectRoot, 'evals', 'report.md');
+      writeFileSync(reportPath, report);
+      console.log(chalk.green(`\n📊 Report saved to: ${reportPath}`));
+
+      // Also print summary
+      const passed = data.results.filter((r: any) => r.passed).length;
+      const total = data.results.length;
+      console.log(`\nSummary: ${passed}/${total} passed (${(passed/total*100).toFixed(0)}%)`);
+      return;
     }
 
     let args = '';
@@ -775,9 +809,10 @@ program
       console.log(chalk.blue('\n🧪 Horus Eval Suite\n'));
       console.log('Run evaluations to measure harness quality:\n');
       console.log('  ' + chalk.cyan('horus eval --quick') + '     Fast feedback (9 tasks)');
-      console.log('  ' + chalk.cyan('horus eval --full') + '      Full suite (17 tasks)');
+      console.log('  ' + chalk.cyan('horus eval --full') + '      Full suite (20+ tasks)');
       console.log('  ' + chalk.cyan('horus eval --task NAME') + ' Single task');
-      console.log('  ' + chalk.cyan('horus eval --list') + '      Show all tasks\n');
+      console.log('  ' + chalk.cyan('horus eval --list') + '      Show all tasks');
+      console.log('  ' + chalk.cyan('horus eval --report') + '    Generate markdown report\n');
       console.log(chalk.gray('Tip: Run "npm run build" before evals to test the latest binary.\n'));
       return;
     }
@@ -1559,5 +1594,64 @@ swarmCmd
     console.log('Swarm status: Not in an active swarm session');
     console.log('Use "horus swarm execute <objective>" to start one');
   });
+
+function generateEvalReport(data: any): string {
+  const results = data.results || [];
+  const passed = results.filter((r: any) => r.passed);
+  const failed = results.filter((r: any) => !r.passed);
+  const avgTime = results.reduce((sum: number, r: any) => sum + (r.elapsed || 0), 0) / results.length;
+  const avgScore = results.reduce((sum: number, r: any) => sum + (r.score || 0), 0) / results.length;
+
+  let report = `# Horus Eval Report\n\n`;
+  report += `**Generated:** ${new Date(data.timestamp).toLocaleString()}\\n`;
+  report += `**Commit:** ${data.commit}\\n`;
+  report += `**Model:** kimi-k2-6\\n\n`;
+
+  report += `## Summary\\n\n`;
+  report += `| Metric | Value |\\n`;
+  report += `|--------|-------|\\n`;
+  report += `| Total Tasks | ${results.length} |\\n`;
+  report += `| Passed | ${passed.length} |\\n`;
+  report += `| Failed | ${failed.length} |\\n`;
+  report += `| Pass Rate | ${(passed.length / results.length * 100).toFixed(1)}% |\\n`;
+  report += `| Avg Score | ${(avgScore * 100).toFixed(1)}% |\\n`;
+  report += `| Avg Time | ${(avgTime / 1000).toFixed(1)}s |\\n\n`;
+
+  if (failed.length > 0) {
+    report += `## Failures\\n\n`;
+    report += `| Task | Score | Time | Notes |\\n`;
+    report += `|------|-------|------|-------|\\n`;
+    for (const r of failed) {
+      const notes = r.details ? Object.entries(r.details).filter(([_, v]) => !v).map(([k]) => k).join(', ') : 'n/a';
+      report += `| ${r.name} | ${(r.score * 100).toFixed(0)}% | ${(r.elapsed / 1000).toFixed(1)}s | ${notes} |\\n`;
+    }
+    report += `\\n`;
+  }
+
+  report += `## Task Breakdown\\n\n`;
+  report += `| Task | Score | Time | Status |\\n`;
+  report += `|------|-------|------|--------|\\n`;
+  for (const r of results) {
+    const status = r.passed ? '✅' : '❌';
+    report += `| ${r.name} | ${(r.score * 100).toFixed(0)}% | ${(r.elapsed / 1000).toFixed(1)}s | ${status} |\\n`;
+  }
+  report += `\\n`;
+
+  report += `## Recommendations\\n\n`;
+  if (failed.length === 0) {
+    report += `- All tasks passing. Consider adding harder evals to find the next breaking point.\\n`;
+  } else {
+    report += `- **Priority**: Fix ${failed[0].name} (lowest score)\\n`;
+    if (failed.length > 1) {
+      report += `- **Secondary**: Address ${failed.slice(1).map((r: any) => r.name).join(', ')}\\n`;
+    }
+    report += `- Review traces with 'horus trace analyze <session-id>'
+`;
+
+  }
+  report += `- Run regression suite before each commit\\n`;
+
+  return report;
+}
 
 program.parse();

@@ -338,8 +338,8 @@ function printResults(results) {
   console.log('='.repeat(70));
 }
 
-async function saveResults(results) {
-  const resultsPath = path.join(PROJECT_ROOT, 'evals', 'results.json');
+async function saveResults(results, outputPath) {
+  const resultsPath = outputPath || path.join(PROJECT_ROOT, 'evals', 'results.json');
   let commit = 'unknown';
   try {
     commit = execSync('git rev-parse --short HEAD', {
@@ -354,6 +354,7 @@ async function saveResults(results) {
     results
   };
   fs.writeFileSync(resultsPath, JSON.stringify(data, null, 2));
+  return resultsPath;
 }
 
 async function main() {
@@ -383,6 +384,17 @@ async function main() {
     const idx = args.indexOf('--task');
     tasks = [args[idx + 1]];
     log(`Running single task: ${tasks[0]}`);
+  } else if (args.includes('--output')) {
+    // --output is a modifier, not a primary command
+    const idx = args.indexOf('--output');
+    const outputPath = args[idx + 1];
+    if (!outputPath) {
+      console.error('Usage: --output <path>');
+      process.exit(2);
+    }
+    // Default to full suite if only --output given
+    tasks = FULL_TASKS;
+    log(`Running FULL eval (${tasks.length} tasks) with output to ${outputPath}...`);
   } else {
     console.log('Horus Eval Runner');
     console.log('');
@@ -391,9 +403,13 @@ async function main() {
     console.log('  node scripts/eval-runner.js --full       # All tasks (17 tasks)');
     console.log('  node scripts/eval-runner.js --task NAME  # Specific task');
     console.log('  node scripts/eval-runner.js --list       # List available tasks');
+    console.log('  node scripts/eval-runner.js --output PATH [--quick|--full]  # Save results to path');
     console.log('');
     process.exit(2);
   }
+
+  const outputIdx = args.indexOf('--output');
+  const outputPath = outputIdx >= 0 ? args[outputIdx + 1] : null;
 
   // Create output directory
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -412,7 +428,10 @@ async function main() {
   }
 
   printResults(results);
-  await saveResults(results);
+  const savedPath = await saveResults(results, outputPath);
+  if (outputPath) {
+    log(`Results saved to: ${savedPath}`);
+  }
 
   // Exit with error if any failed
   const allPassed = results.every(r => r.passed);

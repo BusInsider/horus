@@ -1,0 +1,158 @@
+{
+  "timestamp": "2026-04-19T11:35:36.547Z",
+  "commit": "7e25f72",
+  "results": [
+    {
+      "name": "file-read-edit",
+      "score": 1,
+      "passed": true,
+      "elapsed": 17117,
+      "details": {
+        "hasOld": false,
+        "hasNew": true
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 1d2700b3\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/file-read-edit/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=data.txt]\nFile: /home/jackm/.hermes/workspace/horus/evals/"
+    },
+    {
+      "name": "tool-selection-grep",
+      "score": 1,
+      "passed": true,
+      "elapsed": 9967,
+      "details": {
+        "expectedErrors": 10,
+        "foundErrors": 10
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 896f80a9\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/tool-selection-grep/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[bash: command=grep \"ERROR\" logs.txt > errors.txt && wc]\n10 error"
+    },
+    {
+      "name": "error-recovery-retry",
+      "score": 1,
+      "passed": true,
+      "elapsed": 34800,
+      "details": {
+        "expectedTotal": 6,
+        "resultTotal": 6
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: f2665b1f\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/error-recovery-retry/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=data]\ndata/\n  a.txt (21B)\n  b.txt (14B)\n  c.txt (7B)"
+    },
+    {
+      "name": "multi-step-refactor",
+      "score": 1,
+      "passed": true,
+      "elapsed": 18316,
+      "details": {
+        "hasTypes": true,
+        "usesImport": true,
+        "hasErrorHandling": true,
+        "hasCalc": true,
+        "hasGreet": true
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 40bdbad4\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/multi-step-refactor/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 1 files indexed\n[Recalling memories...] none found\n\n[view: path=old_code.js]\nFile: /home/jackm/.hermes/workspace/horu"
+    },
+    {
+      "name": "mode-fast-lookup",
+      "score": 1,
+      "passed": true,
+      "elapsed": 9501,
+      "details": {
+        "hasName": true,
+        "hasVersion": true
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 16239376\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/mode-fast-lookup/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=config.json]\nFile: /home/jackm/.hermes/workspace/horus/e"
+    },
+    {
+      "name": "git-status-path",
+      "score": 1,
+      "passed": true,
+      "elapsed": 10904,
+      "details": {
+        "hasHorusPath": true,
+        "hasGitInfo": true
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 5ef988e4\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/git-status-path/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[bash: command=git -C /home/jackm/.hermes/workspace/hor]\nOn branch ma"
+    },
+    {
+      "name": "search-outside-cwd",
+      "score": 1,
+      "passed": true,
+      "elapsed": 17756,
+      "details": {
+        "hasInterfaces": true,
+        "hasHorusPath": true,
+        "interfaceCount": 1
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 37527564\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/search-outside-cwd/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[search: query=interface\\s+\\w+\\s*\\{, path=/home/jackm/.hermes/work"
+    },
+    {
+      "name": "memory-recall",
+      "score": 1,
+      "passed": true,
+      "elapsed": 11011,
+      "details": {
+        "hasTypeScript": true,
+        "hasVSCode": true,
+        "usedMemory": true
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 2adde24d\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/memory-recall/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[remember: fact=The test user's favorite programming lan]\n\n[remember: f"
+    },
+    {
+      "name": "nested-file-creation",
+      "score": 1,
+      "passed": true,
+      "elapsed": 14034,
+      "details": {
+        "fileExists": true,
+        "usedBash": false,
+        "hasExport": true,
+        "hasButton": true,
+        "hasJSX": true
+      },
+      "metrics": {
+        "iterations": null,
+        "tokens": null,
+        "apiCalls": null
+      },
+      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 2c40f4fc\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/nested-file-creation/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[edit: path=src/components/Button.tsx]\nCreated file: /home/jackm"
+    }
+  ]
+}

@@ -229,7 +229,7 @@ export async function resetConfiguration(): Promise<void> {
   const defaultConfig: Config = {
     provider: {
       apiKey: '',
-      model: 'kimi-k2-5',
+      model: 'kimi-k2-6',
       baseUrl: 'https://api.moonshot.cn/v1',
     },
     memory: {

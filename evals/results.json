@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-19T11:35:36.547Z",
-  "commit": "7e25f72",
+  "timestamp": "2026-04-21T13:34:40.963Z",
+  "commit": "599be4f",
   "results": [
     {
       "name": "file-read-edit",
       "score": 1,
       "passed": true,
-      "elapsed": 17117,
+      "elapsed": 14203,
       "details": {
         "hasOld": false,
         "hasNew": true
@@ -16,13 +16,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 1d2700b3\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/file-read-edit/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=data.txt]\nFile: /home/jackm/.hermes/workspace/horus/evals/"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 498b4eb9\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/file-read-edit/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=data.txt]\nFile: /home/jackm/.hermes/workspace/horus/evals/"
     },
     {
       "name": "tool-selection-grep",
       "score": 1,
       "passed": true,
-      "elapsed": 9967,
+      "elapsed": 16695,
       "details": {
         "expectedErrors": 10,
         "foundErrors": 10
@@ -32,13 +32,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 896f80a9\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/tool-selection-grep/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[bash: command=grep \"ERROR\" logs.txt > errors.txt && wc]\n10 error"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 44755e82\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/tool-selection-grep/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[bash: command=grep \"ERROR\" logs.txt > errors.txt]\nDone. I used `"
     },
     {
       "name": "error-recovery-retry",
       "score": 1,
       "passed": true,
-      "elapsed": 34800,
+      "elapsed": 36936,
       "details": {
         "expectedTotal": 6,
         "resultTotal": 6
@@ -48,13 +48,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: f2665b1f\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/error-recovery-retry/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=data]\ndata/\n  a.txt (21B)\n  b.txt (14B)\n  c.txt (7B)"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: e36a5890\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/error-recovery-retry/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[glob: pattern=data/**/*.txt]\n/home/jackm/.hermes/workspace/horu"
     },
     {
       "name": "multi-step-refactor",
       "score": 1,
       "passed": true,
-      "elapsed": 18316,
+      "elapsed": 30458,
       "details": {
         "hasTypes": true,
         "usesImport": true,
@@ -67,13 +67,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 40bdbad4\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/multi-step-refactor/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 1 files indexed\n[Recalling memories...] none found\n\n[view: path=old_code.js]\nFile: /home/jackm/.hermes/workspace/horu"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 80070be9\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/multi-step-refactor/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 1 files indexed\n[Recalling memories...] none found\n\n[view: path=old_code.js]\nFile: /home/jackm/.hermes/workspace/horu"
     },
     {
       "name": "mode-fast-lookup",
       "score": 1,
       "passed": true,
-      "elapsed": 9501,
+      "elapsed": 8211,
       "details": {
         "hasName": true,
         "hasVersion": true
@@ -83,13 +83,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 16239376\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/mode-fast-lookup/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[view: path=config.json]\nFile: /home/jackm/.hermes/workspace/horus/e"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 90742926\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/mode-fast-lookup/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\nThe file `config.json` is in the current directory. Here are its cont"
     },
     {
       "name": "git-status-path",
       "score": 1,
       "passed": true,
-      "elapsed": 10904,
+      "elapsed": 15311,
       "details": {
         "hasHorusPath": true,
         "hasGitInfo": true
@@ -99,13 +99,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 5ef988e4\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/git-status-path/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[bash: command=git -C /home/jackm/.hermes/workspace/hor]\nOn branch ma"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: db166076\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/git-status-path/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[bash: command=git -C /home/jackm/.hermes/workspace/hor]\nOn branch ma"
     },
     {
       "name": "search-outside-cwd",
       "score": 1,
       "passed": true,
-      "elapsed": 17756,
+      "elapsed": 21952,
       "details": {
         "hasInterfaces": true,
         "hasHorusPath": true,
@@ -116,13 +116,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 37527564\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/search-outside-cwd/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[search: query=interface\\s+\\w+\\s*\\{, path=/home/jackm/.hermes/work"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 08cca761\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/search-outside-cwd/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[search: query=interface\\s+\\w+\\s*\\{, path=/home/jackm/.hermes/work"
     },
     {
       "name": "memory-recall",
       "score": 1,
       "passed": true,
-      "elapsed": 11011,
+      "elapsed": 18717,
       "details": {
         "hasTypeScript": true,
         "hasVSCode": true,
@@ -133,13 +133,13 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 2adde24d\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/memory-recall/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[remember: fact=The test user's favorite programming lan]\n\n[remember: f"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 5b5817a2\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/memory-recall/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[remember: fact=The user's favorite programming language]\n\n[remember: f"
     },
     {
       "name": "nested-file-creation",
       "score": 1,
       "passed": true,
-      "elapsed": 14034,
+      "elapsed": 14676,
       "details": {
         "fileExists": true,
         "usedBash": false,
@@ -152,7 +152,7 @@
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-5 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 2c40f4fc\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/nested-file-creation/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[edit: path=src/components/Button.tsx]\nCreated file: /home/jackm"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 72f659e2\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/nested-file-creation/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 0 files indexed\n[Recalling memories...] none found\n\n[edit: path=src/components/Button.tsx]\nCreated file: /home/jackm"
     }
   ]
 }

@@ -30,7 +30,7 @@ export interface Config {
 const DEFAULT_CONFIG: Config = {
   provider: {
     apiKey: '',
-    model: 'kimi-k2-5',
+    model: 'kimi-k2-6',
     baseUrl: 'https://api.moonshot.ai/v1',  // Moonshot International/US endpoint
   },
   memory: {

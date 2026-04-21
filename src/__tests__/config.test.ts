@@ -6,7 +6,7 @@ describe('Config', () => {
     const config = loadConfig();
     expect(config).toBeDefined();
     expect(config.provider).toBeDefined();
-    expect(config.provider.model).toBe('kimi-k2-5');
+    expect(config.provider.model).toBe('kimi-k2-6');
   });
 
   it('should have a valid Kimi API endpoint', () => {

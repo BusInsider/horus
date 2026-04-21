@@ -47,6 +47,16 @@ const DEFAULT_TIER_BUDGETS: TierBudget[] = [
   { tier: 5, maxTokens: 36000, strategy: 'retrieve' },  // External knowledge
 ];
 
+// Aggressive budgets for K2.6 — leverages better long-context utilization
+// 256K context with 16K reserve, shifted toward codebase context and deep history
+export const K2_6_TIER_BUDGETS: TierBudget[] = [
+  { tier: 1, maxTokens: 8000, strategy: 'full' },      // Working memory (unchanged)
+  { tier: 2, maxTokens: 48000, strategy: 'trim' },     // Recent history (unchanged)
+  { tier: 3, maxTokens: 80000, strategy: 'summarize' }, // Deep history: +16K
+  { tier: 4, maxTokens: 140000, strategy: 'semantic' }, // Codebase context: +40K
+  { tier: 5, maxTokens: 40000, strategy: 'retrieve' },  // External knowledge: +4K
+];
+
 // ─── Token estimation helpers ───
 
 function estimateTokens(text: string): number {

@@ -74,6 +74,10 @@ export class KimiClient {
     return this.sessionId;
   }
 
+  getModel(): string {
+    return this.config.model;
+  }
+
   async *stream(
     messages: Message[],
     tools: ToolDefinition[],

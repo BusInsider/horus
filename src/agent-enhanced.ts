@@ -16,7 +16,7 @@ import { SessionPersistence, getSessionPersistence } from './session-persistence
 import { Logger } from './utils/logger.js';
 import { ModeController, ModeType, getModeController } from './mode-controller.js';
 import { Tracer } from './utils/tracer.js';
-import { ContextCompactor } from './context-compactor.js';
+import { ContextCompactor, K2_6_TIER_BUDGETS } from './context-compactor.js';
 import { ToolSelector } from './utils/tool-selector.js';
 
 export interface EnhancedAgentConfig {
@@ -71,8 +71,10 @@ export class EnhancedAgent {
     this.showThinking = config.showThinking ?? false;
     this.turbo = config.turbo ?? false;
     this.tracer = new Tracer('pending', true);
+    const isK26 = this.kimi.getModel().includes('k2-6');
     this.contextCompactor = new ContextCompactor({
       enabled: process.env.HORUS_COMPACTION !== '0',
+      budgets: isK26 ? K2_6_TIER_BUDGETS : undefined,
     });
     this.toolSelector = new ToolSelector({
       maxTools: 16,

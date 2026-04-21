@@ -1,23 +1,22 @@
 {
-  "timestamp": "2026-04-21T14:14:42.517Z",
-  "commit": "b14ac21",
+  "timestamp": "2026-04-21T14:20:22.078Z",
+  "commit": "a03f1d6",
   "results": [
     {
-      "name": "nested-conditional-editing",
-      "score": 0.3333333333333333,
-      "passed": false,
-      "elapsed": 99942,
+      "name": "large-context-bug-hunt",
+      "score": 1,
+      "passed": true,
+      "elapsed": 101427,
       "details": {
-        "nestingOk": false,
-        "testsPassed": false,
-        "hasEarlyReturns": true
+        "bugFixed": true,
+        "testPassed": true
       },
       "metrics": {
         "iterations": null,
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 8740d6ff\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/nested-conditional-editing/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 2 files indexed\n[Recalling memories...] 1 file\n\n[view: path=src/auth.js]\nFile: /home/jackm/.hermes/workspace/h"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 090f5572\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/large-context-bug-hunt/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 12 files indexed\n[Recalling memories...] none found\n\n[search: query=processBatch|batchSize, path=.]\nFound 31 match"
     }
   ]
 }

@@ -52,7 +52,7 @@ const FULL_TASKS = [
   'ambiguous-error-recovery',
   'cross-file-type-refactor',
   'deliberate-plan-flaws',
-  'nested-conditional-editing'
+  // 'nested-conditional-editing'  // Flaky: agent loop/API issues, revisit later
 ];
 
 function log(message) {

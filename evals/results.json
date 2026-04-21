@@ -1,22 +1,23 @@
 {
-  "timestamp": "2026-04-21T14:20:22.078Z",
-  "commit": "a03f1d6",
+  "timestamp": "2026-04-21T14:32:30.222Z",
+  "commit": "0d4c1d0",
   "results": [
     {
-      "name": "large-context-bug-hunt",
+      "name": "ambiguous-error-recovery",
       "score": 1,
       "passed": true,
-      "elapsed": 101427,
+      "elapsed": 85056,
       "details": {
-        "bugFixed": true,
-        "testPassed": true
+        "rootCauseFixed": true,
+        "testPassed": true,
+        "noSymptomPatch": true
       },
       "metrics": {
         "iterations": null,
         "tokens": null,
         "apiCalls": null
       },
-      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 090f5572\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/large-context-bug-hunt/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 12 files indexed\n[Recalling memories...] none found\n\n[search: query=processBatch|batchSize, path=.]\nFound 31 match"
+      "output": "Mode: Balanced | Model: kimi-k2-6 | Temp: 0.8 | Latency: medium\n\n┌─ Horus Session Started ─┐\n│ Session: 00905f71\n│ Working: /home/jackm/.hermes/workspace/horus/evals/output/ambiguous-error-recovery/workspace\n└─────────────────────────┘\n\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit\nTools always available - use /mode to adjust speed/cost\n\n[Indexing...] 5 files indexed\n[Recalling memories...] none found\n\n[bash: command=npm test]\n\n> api-server@1.0.0 test\n> node tes"
     }
   ]
 }

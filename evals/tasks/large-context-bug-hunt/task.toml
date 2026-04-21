@@ -1,0 +1,3 @@
+name = "Large Context Bug Hunt"
+timeout = 180
+tags = ["long_context", "reasoning", "bug_hunt"]

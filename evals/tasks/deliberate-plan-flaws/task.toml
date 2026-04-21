@@ -1,0 +1,3 @@
+name = "Deliberate Plan Flaws"
+timeout = 120
+tags = ["planning", "critical_thinking", "verification"]

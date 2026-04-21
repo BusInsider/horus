@@ -47,7 +47,12 @@ const FULL_TASKS = [
   'self-correction',
   'cross-session-context',
   'crlf-edit',
-  'hidden-config-discovery'
+  'hidden-config-discovery',
+  'large-context-bug-hunt',
+  'ambiguous-error-recovery',
+  'cross-file-type-refactor',
+  'deliberate-plan-flaws',
+  'nested-conditional-editing'
 ];
 
 function log(message) {
@@ -163,13 +168,17 @@ async function runTask(taskName, workspaceDir, outputDir) {
     if (timeoutMatch) {
       timeout = parseInt(timeoutMatch[1]) * 1000;
     }
-    if (tomlContent.includes('plan') || tomlContent.includes('planning')) {
+    if (tomlContent.includes('use_plan_mode') || tomlContent.includes('plan_mode_required')) {
       usePlanMode = true;
     }
   }
 
   // Also check instruction for explicit plan mode request
-  if (instruction.includes('--plan') || instruction.includes('plan mode')) {
+  // Only trigger if explicitly requested, not if negated (e.g. "Do NOT use plan mode")
+  if (instruction.includes('--plan')) {
+    usePlanMode = true;
+  }
+  if (/\b(use|enable|run with|start)\s+plan\s+mode\b/i.test(instruction)) {
     usePlanMode = true;
   }
 

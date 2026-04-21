@@ -1,6 +1,6 @@
 # Horus Development Roadmap
 
-> Complete checklist to make Horus a production-ready, Hermes-equivalent agent for Kimi K2.5
+> Complete checklist to make Horus a production-ready, Hermes-equivalent agent for Kimi K2.5 and K2.6
 
 ## 🎯 Phase 1: Core Foundation (In Progress)
 
@@ -10,7 +10,7 @@
 - [x] SQLite persistence
 - [x] Embedding-based semantic search
 - [x] View, edit, bash, search, glob tools
-- [x] Kimi K2.5 API client with streaming
+- [x] Kimi K2.5 and K2.6 API client with streaming
 - [x] Checkpoint/rollback system
 - [x] Plan mode with PLAN.md
 - [x] Subagent spawning

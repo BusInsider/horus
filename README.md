@@ -16,7 +16,7 @@
 - **🐝 Agent Swarm**: Multi-agent orchestration for complex parallel tasks
 - **💤 Hibernation**: Save and resume complete agent state with MCTS-style cloning
 - **⚡ Tool Batching**: MoE-optimized parallel tool execution
-- **📊 256K Context**: Native support for Kimi K2.5's large context window
+- **📊 256K Context**: Native support for Kimi K2.5 and K2.6's large context windows
 
 ### Developer Experience
 - **🔒 Safe Execution**: Sandboxed skill execution with dangerous pattern detection
@@ -54,7 +54,7 @@ horus init
 {
   "provider": {
     "apiKey": "sk-kimi-...",
-    "model": "kimi-k2-5",
+    "model": "kimi-k2-5",  // or "kimi-k2-6", "kimi-k2-6-preview"
     "baseUrl": "https://api.kimi.com/coding/v1"
   },
   "workspace": {
@@ -288,7 +288,7 @@ MIT License - see [LICENSE](LICENSE) file.
 ## 🙏 Acknowledgments
 
 - Inspired by [Nous Research's Hermes Agent](https://github.com/alchaincyf/hermes-agent-orange-book)
-- Built for [Kimi K2.5](https://www.moonshot.cn/)'s 256K context and MoE architecture
+- Built for [Kimi K2.5](https://www.moonshot.cn/) and K2.6's 256K+ context and MoE architecture
 - Architecture influenced by Claude Code and OpenClaw
 
 ---

@@ -1,0 +1,4 @@
+name = "CRLF Edit"
+timeout = 90
+tags = ["editing", "cross_platform", "line_endings"]
+description = "Agent must correctly edit a file with Windows-style CRLF line endings"

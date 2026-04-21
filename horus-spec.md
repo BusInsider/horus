@@ -1,8 +1,8 @@
-# Horus: Hermes-Equivalent for Kimi K2.5
+# Horus: Hermes-Equivalent for Kimi K2.5 and K2.6
 
-> An autonomous coding agent with Hermes-level flexibility, supercharged for Kimi K2.5's 256k context.
+> An autonomous coding agent with Hermes-level flexibility, supercharged for Kimi K2.5 and K2.6's 256k context.
 
-**Core Philosophy**: Hermes-like flexibility meets Kimi K2.5's power. Plan mode, subagents, checkpoints, and automatic memory.
+**Core Philosophy**: Hermes-like flexibility meets Kimi K2.5 and K2.6's power. Plan mode, subagents, checkpoints, and automatic memory.
 
 ---
 
@@ -243,7 +243,7 @@ INIT -> PLAN? -> CHECKPOINT -> EXECUTE -> VERIFY -> [DONE or ROLLBACK]
 {
   "provider": {
     "apiKey": "${KIMI_API_KEY}",
-    "model": "kimi-k2-5",
+    "model": "kimi-k2-5",  // or "kimi-k2-6", "kimi-k2-6-preview"
     "baseUrl": "https://api.moonshot.cn/v1"
   },
   "agent": {
@@ -310,4 +310,4 @@ horus config                            # Show config
 
 ---
 
-*This is Horus - Hermes-level flexibility with Kimi K2.5 power.*
+*This is Horus - Hermes-level flexibility with Kimi K2.5 and K2.6 power.*

@@ -1,0 +1,4 @@
+name = "Complex Planning"
+timeout = 180
+tags = ["planning", "multi_step", "reasoning"]
+description = "Test that the agent can create and execute a multi-step plan"

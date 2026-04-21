@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { join, isAbsolute } from 'path';
 import { Tool, ToolContext, ToolResult } from './types.js';
 
 export const searchTool: Tool = {
@@ -30,7 +31,7 @@ Fast and respects .gitignore by default.`,
   },
 
   async execute(args: { query: string; path?: string; glob?: string; caseSensitive?: boolean }, context: ToolContext): Promise<ToolResult> {
-    const targetPath = args.path || context.cwd;
+    const targetPath = args.path ? (isAbsolute(args.path) ? args.path : join(context.cwd, args.path)) : context.cwd;
 
     try {
       const results = await runRipgrep({

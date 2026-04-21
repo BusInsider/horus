@@ -92,6 +92,6 @@ horus chat
 - **Endpoint**: `https://api.kimi.com/coding/v1`
 - **Key Format**: `sk-kimi-...` (get from platform.kimi.com)
 - **User-Agent**: `KimiCLI/1.0` (required for api.kimi.com)
-- **Model**: `kimi-for-coding` (mapped from `kimi-k2-5`)
+- **Model**: `kimi-for-coding` (mapped from `kimi-k2-5`, `kimi-k2-6`, `kimi-k2-6-preview`, `kimi-latest`)
 
 See `HANDOFF.md` for full details.

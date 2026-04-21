@@ -1,6 +1,6 @@
 // Grep tool - Search file contents with regex
 import { promises as fs } from 'fs';
-import { join, isAbsolute, relative } from 'path';
+import { join, isAbsolute } from 'path';
 import { Tool, ToolContext, ToolResult } from './types.js';
 
 export const grepTool: Tool = {
@@ -44,17 +44,23 @@ Use this to find specific code patterns, function definitions, imports, etc.`,
       };
     }
 
-    const targetPath = isAbsolute(args.path) ? args.path : join(context.cwd, args.path);
-
-    // Security: Ensure path is within working directory
+    // Determine target path
     const resolvedPath = isAbsolute(args.path) ? args.path : join(context.cwd, args.path);
-    const relativePath = relative(context.cwd, resolvedPath);
-    if (relativePath.startsWith('..')) {
-      return {
-        ok: false,
-        error: 'Path must be within working directory',
-      };
+    
+    // Allow paths outside cwd but validate for security
+    // Block system directories that shouldn't be searched
+    const blockedPaths = ['/etc', '/usr', '/bin', '/sbin', '/lib', '/opt'];
+    const normalizedPath = resolvedPath.toLowerCase();
+    for (const blocked of blockedPaths) {
+      if (normalizedPath.startsWith(blocked)) {
+        return {
+          ok: false,
+          error: `Cannot search in system directory: ${blocked}`,
+        };
+      }
     }
+    
+    const targetPath = resolvedPath;
 
     try {
       const stats = await fs.stat(targetPath);

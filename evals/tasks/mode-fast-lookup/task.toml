@@ -1,0 +1,3 @@
+name = "Mode Selection: Fast Lookup"
+timeout = 30
+tags = ["mode_appropriateness", "quick"]

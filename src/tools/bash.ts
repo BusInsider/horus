@@ -182,8 +182,8 @@ function checkDangerousCommand(command: string): { dangerous: boolean; reason?: 
   // Block list - more comprehensive
   const dangerous = [
     // System destruction
-    { pattern: /rm\s+-rf\s*\/\s*/, reason: 'System-wide deletion' },
-    { pattern: /rm\s+-rf\s+\/\w+/, reason: 'Root directory deletion' },
+    { pattern: /rm\s+-rf\s+\/\s*$/, reason: 'System-wide deletion' },
+    { pattern: /rm\s+-rf\s+\/(?:bin|boot|dev|etc|lib|lib64|proc|root|run|sbin|srv|sys|usr|var)\b/, reason: 'Root directory deletion' },
     { pattern: /dd\s+if=\/dev\/(zero|null|urandom|random)/, reason: 'Disk destruction' },
     { pattern: /dd\s+of=\/dev\/[sh]d[a-z]/, reason: 'Direct disk write' },
     { pattern: /mkfs\./, reason: 'Filesystem formatting' },

@@ -139,7 +139,9 @@ export const rmTool: Tool = {
     const targetPath = isAbsolute(args.path) ? args.path : join(context.cwd, args.path);
 
     try {
-      await fs.rm(targetPath, { recursive: args.recursive });
+      // Ensure recursive is explicitly boolean (default false)
+      const recursive = args.recursive === true;
+      await fs.rm(targetPath, { recursive });
       return {
         ok: true,
         content: `Removed: ${targetPath}`,

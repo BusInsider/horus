@@ -1,0 +1,4 @@
+name = "Git Status with Path"
+timeout = 60
+tags = ["git", "path_parameter", "working"]
+description = "Test that git tools accept path parameter to check repos outside cwd"

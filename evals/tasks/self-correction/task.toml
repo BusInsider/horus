@@ -1,0 +1,4 @@
+name = "Self Correction"
+timeout = 120
+tags = ["error_recovery", "self_critique", "testing"]
+description = "Agent must fix a bug and verify via tests, correcting if the first attempt fails"

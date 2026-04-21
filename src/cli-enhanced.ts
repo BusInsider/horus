@@ -39,12 +39,15 @@ import { getSkillRegistry } from './skills/registry.js';
 import { CompiledSkill } from './skills/types.js';
 import { resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { execSync } from 'child_process';
 import { expandHomeDir } from './utils/paths.js';
 import { SubagentConfig } from './subagent.js';
 import { PlanManager } from './plan.js';
 import { handleAgentCommand, printAgentHelp } from './agents/index.js';
 import { initLogger } from './utils/logger.js';
 import { ModeType, ModeController } from './mode-controller.js';
+import { TraceViewer } from './utils/tracer.js';
+import { analyzeSession, aggregateStats, compareSessions, formatDuration, formatCost } from './utils/trace-analysis.js';
 import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
 import { runDoctor } from './doctor.js';
 import chalk from 'chalk';
@@ -65,11 +68,19 @@ let globalOptions = {
   dryRun: false,
 };
 
+// Special error to signal restart
+class RestartError extends Error {
+  constructor() {
+    super('Restart requested');
+    this.name = 'RestartError';
+  }
+}
+
 const program = new Command();
 
 program
   .name('horus')
-  .description('Hermes-equivalent autonomous agent for Kimi K2.5')
+  .description('Hermes-equivalent autonomous agent for Kimi K2.5 and K2.6')
   .version('0.2.0')
   .option('-v, --verbose', 'enable verbose output', false)
   .option('-q, --quiet', 'suppress non-error output', false)
@@ -83,6 +94,7 @@ program
       debug: opts.debug || false,
       dryRun: opts.dryRun || false,
     };
+
 
     // Initialize logger with appropriate level
     if (globalOptions.debug) {
@@ -119,8 +131,9 @@ program
 program
   .command('doctor')
   .description('Run diagnostic checks on Horus installation')
-  .action(async () => {
-    await runDoctor();
+  .option('--fix', 'Attempt to fix native module issues automatically')
+  .action(async (options) => {
+    await runDoctor({ fix: options.fix });
   });
 
 program
@@ -153,9 +166,12 @@ program
   .option('-r, --resume <sessionId>', 'Resume a previous session')
   .option('-p, --plan', 'Enable plan mode')
   .option('-m, --mode <mode>', 'Mode: fast|balanced|thorough|swarm (default: balanced). Legacy: instant|thinking|agent')
+  .option('--turbo', 'Use turbo model for maximum speed (overrides mode model)')
   .option('--show-thinking', 'Display reasoning_content (thinking mode)')
   .option('-n, --name <name>', 'Name this session for later reference')
   .option('--tag <tags>', 'Comma-separated tags for this session')
+  .option('-q, --quiet', 'Minimal output (tools shown as [name] only)')
+  .option('-v, --verbose', 'Detailed output (full tool arguments and results)')
   .action(async (path, options) => {
     const config = loadConfig();
     const cwd = resolve(path || expandHomeDir(config.workspace.defaultPath));
@@ -170,7 +186,14 @@ program
       process.exit(1);
     }
 
-    const ui = new TerminalUI();
+    // Determine verbosity from command options or global options
+    let verbosity: 'quiet' | 'normal' | 'verbose' = config.agent?.verbosity || 'normal';
+    if (options.quiet || globalOptions.quiet) verbosity = 'quiet';
+    if (options.verbose || globalOptions.verbose) verbosity = 'verbose';
+    
+
+    
+    const ui = new TerminalUI(verbosity);
     
     try {
       const kimi = new KimiClient({
@@ -276,11 +299,13 @@ program
         planMode: options.plan,
         mode,
         showThinking: options.showThinking,
+        turbo: options.turbo,
       });
 
       const modeConfig = modeController.getConfig();
+      const modelLabel = options.turbo ? 'TURBO' : (modeConfig.model || config.provider.model);
       console.log(chalk.blue('\n🧠 Horus is ready. Type your task or "exit" to quit.\n'));
-      console.log(chalk.gray(`Mode: ${modeConfig.name} | Temp: ${modeConfig.temperature} | Tools: always enabled | Latency: ${modeConfig.latency}\n`));
+      console.log(chalk.gray(`Mode: ${modeConfig.name} | Model: ${modelLabel} | Temp: ${modeConfig.temperature} | Latency: ${modeConfig.latency}\n`));
       console.log(chalk.gray(`Tip: Use /mode <fast|balanced|thorough|swarm> to switch modes\n`));
       if (options.plan) {
         console.log(chalk.yellow('📋 Plan mode enabled\n'));
@@ -347,9 +372,56 @@ program
             return '';
           }
 
+          if (input === '/restart' || input === '/reload') {
+            ui.writeLine(chalk.yellow('\n🔄 Restarting Horus to load new code...'));
+            throw new RestartError();
+          }
+
+          if (input === '/memory' || input.startsWith('/memory ')) {
+            const args = input.slice(7).trim();
+            if (args === 'clear' || args === 'reset') {
+              // Note: Actual clearing would require implementing clearMemory in MemoryManager
+              ui.writeLine(chalk.yellow('\n⚠️  Memory clearing not yet implemented'));
+            } else {
+              // Show recent memories
+              const facts = memory.getFacts(undefined, 10);
+              ui.writeLine(chalk.blue('\n📚 Recent Memories:'));
+              if (facts.length === 0) {
+                ui.writeLine(chalk.gray('  No memories stored yet'));
+              } else {
+                for (const fact of facts) {
+                  const date = new Date(fact.createdAt).toLocaleDateString();
+                  ui.writeLine(chalk.gray(`  [${fact.category}] ${date}: ${fact.fact.substring(0, 60)}${fact.fact.length > 60 ? '...' : ''}`));
+                }
+              }
+              ui.writeLine(chalk.gray(`\nTotal memories: ${facts.length}`));
+            }
+            return '';
+          }
+
           return input;
         });
       } catch (error) {
+        if (error instanceof RestartError) {
+          // Restart requested - close resources and exec new process
+          ui.close();
+          memory.close();
+          
+          console.log(chalk.blue('\n♻️  Restarting Horus...\n'));
+          
+          // Get the path to the current executable
+          const { execPath } = process;
+          const args = process.argv.slice(2).filter(arg => arg !== '--resume');
+          
+          // Spawn new process and exit this one
+          const { spawn } = await import('child_process');
+          spawn(execPath, args, {
+            stdio: 'inherit',
+            detached: true,
+          }).unref();
+          
+          process.exit(0);
+        }
         ui.error(error instanceof Error ? error.message : 'Unknown error');
       }
 
@@ -357,6 +429,17 @@ program
       memory.close();
       
     } catch (error) {
+      if (error instanceof RestartError) {
+        console.log(chalk.blue('\n♻️  Restarting Horus...\n'));
+        const { execPath } = process;
+        const args = process.argv.slice(2).filter(arg => arg !== '--resume');
+        const { spawn } = await import('child_process');
+        spawn(execPath, args, {
+          stdio: 'inherit',
+          detached: true,
+        }).unref();
+        process.exit(0);
+      }
       ui.error(error instanceof Error ? error.message : 'Failed to start Horus');
       process.exit(1);
     }
@@ -367,6 +450,11 @@ program
   .description('Execute a single task and exit')
   .option('-p, --path <path>', 'Working directory')
   .option('--plan', 'Use plan mode')
+  .option('--fresh', 'Start fresh, ignore crashed sessions')
+  .option('-m, --mode <mode>', 'Mode: fast|balanced|thorough|swarm (default: balanced)')
+  .option('--turbo', 'Use turbo model for maximum speed (overrides mode model)')
+  .option('-q, --quiet', 'Minimal output')
+  .option('-v, --verbose', 'Detailed output')
   .action(async (task, options) => {
     const config = loadConfig();
     const cwd = resolve(options.path || expandHomeDir(config.workspace.defaultPath));
@@ -381,7 +469,12 @@ program
       process.exit(1);
     }
 
-    const ui = new TerminalUI();
+    // Determine verbosity from command options or global options
+    let verbosity: 'quiet' | 'normal' | 'verbose' = config.agent.verbosity || 'normal';
+    if (options.quiet || globalOptions.quiet) verbosity = 'quiet';
+    if (options.verbose || globalOptions.verbose) verbosity = 'verbose';
+    
+    const ui = new TerminalUI(verbosity);
     
     try {
       const kimi = new KimiClient({
@@ -419,6 +512,18 @@ program
         ['index', createIndexWorkspaceTool(memory)],
       ]);
 
+      // Validate mode
+      let mode: ModeType = 'balanced';
+      if (options.mode) {
+        try {
+          mode = ModeController.validateMode(options.mode);
+        } catch (error) {
+          console.error(`Error: ${error instanceof Error ? error.message : 'Invalid mode'}`);
+          console.error(`Available modes: fast, balanced, thorough, swarm`);
+          process.exit(1);
+        }
+      }
+
       const agent = new EnhancedAgent({
         kimi,
         memory,
@@ -427,9 +532,19 @@ program
         maxIterations: config.agent.maxIterations,
         autoCheckpoint: true,
         planMode: options.plan,
+        mode,
+        turbo: options.turbo,
       });
 
-      await agent.run(task, cwd, { planMode: options.plan });
+      const modeControllerRun = new ModeController();
+      modeControllerRun.setMode(mode);
+      const modeConfigRun = modeControllerRun.getConfig();
+      const modelLabel = options.turbo ? 'TURBO' : (modeConfigRun.model || config.provider.model);
+      if (!options.quiet) {
+        console.log(chalk.gray(`Mode: ${modeConfigRun.name} | Model: ${modelLabel} | Temp: ${modeConfigRun.temperature} | Latency: ${modeConfigRun.latency}`));
+      }
+
+      await agent.run(task, cwd, { planMode: options.plan, fresh: options.fresh });
       
       memory.close();
       
@@ -629,6 +744,228 @@ program
   .description('Configure MCP (Model Context Protocol) servers')
   .action(async () => {
     await configureMcp();
+  });
+
+program
+  .command('eval')
+  .description('Run the Horus evaluation suite')
+  .option('--quick', 'Run quick eval set (9 tasks, ~5 min)')
+  .option('--full', 'Run full eval suite (17 tasks, ~15 min)')
+  .option('--task <name>', 'Run a specific eval task')
+  .option('--list', 'List available eval tasks')
+  .action(async (options) => {
+    const projectRoot = resolve(__dirname, '..');
+    const runnerPath = resolve(projectRoot, 'scripts', 'eval-runner.js');
+
+    if (!existsSync(runnerPath)) {
+      console.error(chalk.red('Eval runner not found. Expected:'), runnerPath);
+      process.exit(1);
+    }
+
+    let args = '';
+    if (options.list) {
+      args = '--list';
+    } else if (options.quick) {
+      args = '--quick';
+    } else if (options.full) {
+      args = '--full';
+    } else if (options.task) {
+      args = `--task ${options.task}`;
+    } else {
+      console.log(chalk.blue('\n🧪 Horus Eval Suite\n'));
+      console.log('Run evaluations to measure harness quality:\n');
+      console.log('  ' + chalk.cyan('horus eval --quick') + '     Fast feedback (9 tasks)');
+      console.log('  ' + chalk.cyan('horus eval --full') + '      Full suite (17 tasks)');
+      console.log('  ' + chalk.cyan('horus eval --task NAME') + ' Single task');
+      console.log('  ' + chalk.cyan('horus eval --list') + '      Show all tasks\n');
+      console.log(chalk.gray('Tip: Run "npm run build" before evals to test the latest binary.\n'));
+      return;
+    }
+
+    try {
+      execSync(`node "${runnerPath}" ${args}`, {
+        cwd: projectRoot,
+        stdio: 'inherit',
+      });
+    } catch (e) {
+      // Exit code is forwarded; don't print extra error
+      const status = (e as { status?: number })?.status;
+      process.exit(status || 1);
+    }
+  });
+
+program
+  .command('trace')
+  .description('View and analyze session traces')
+  .option('--list', 'List all session traces')
+  .option('--view <id>', 'View a specific trace')
+  .option('--latest', 'View the most recent trace')
+  .option('--analyze <id>', 'Analyze a trace (summary + stats)')
+  .option('--stats', 'Show aggregate statistics across all traces')
+  .option('--compare <ids>', 'Compare two traces (comma-separated IDs)')
+  .action(async (options) => {
+    const viewer = new TraceViewer();
+
+    if (options.list) {
+      const traces = viewer.listTraces();
+      if (traces.length === 0) {
+        console.log(chalk.gray('No traces found in ~/.horus/traces/'));
+        return;
+      }
+      console.log(chalk.blue('\n📋 Session Traces\n'));
+      console.log(`${chalk.bold('ID'.padEnd(28))} ${chalk.bold('Date'.padEnd(22))} ${chalk.bold('Events')}`);
+      console.log('─'.repeat(70));
+      for (const t of traces) {
+        const dateStr = t.date.toLocaleString('en-US', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+        console.log(`${t.id.padEnd(28)} ${dateStr.padEnd(22)} ${String(t.events).padStart(4)}`);
+      }
+      console.log();
+      return;
+    }
+
+    if (options.view) {
+      const output = viewer.viewTrace(options.view);
+      console.log(output);
+      return;
+    }
+
+    if (options.latest) {
+      const traces = viewer.listTraces();
+      if (traces.length === 0) {
+        console.log(chalk.gray('No traces found'));
+        return;
+      }
+      const output = viewer.viewTrace(traces[0].id);
+      console.log(output);
+      return;
+    }
+
+    if (options.analyze) {
+      const summary = analyzeSession(options.analyze);
+      if (!summary) {
+        console.log(chalk.red(`Trace not found: ${options.analyze}`));
+        return;
+      }
+      console.log(chalk.blue('\n📊 Session Analysis\n'));
+      console.log(`Session:    ${chalk.cyan(summary.sessionId)}`);
+      console.log(`Started:    ${summary.startTime.toLocaleString()}`);
+      console.log(`Duration:   ${formatDuration(summary.durationMs)}`);
+      console.log(`CWD:        ${summary.cwd}`);
+      console.log(`Mode:       ${summary.mode}`);
+      console.log(`Model:      ${summary.model}`);
+      console.log(`Iterations: ${summary.iterations}`);
+      console.log();
+      console.log(chalk.bold('Metrics:'));
+      console.log(`  API calls:        ${summary.apiCalls}`);
+      console.log(`  Tool calls:       ${summary.toolCalls}`);
+      console.log(`  Errors:           ${summary.errors}`);
+      console.log(`  Prompt tokens:    ${summary.promptTokens.toLocaleString()}`);
+      console.log(`  Completion tokens: ${summary.completionTokens.toLocaleString()}`);
+      console.log(`  Total tokens:     ${summary.totalTokens.toLocaleString()}`);
+      console.log(`  Est. cost:        ${formatCost(summary.estimatedCost)}`);
+      if (summary.errors > 0) {
+        console.log();
+        console.log(chalk.bold('Errors:'));
+        for (const err of summary.errorEvents) {
+          console.log(`  ${chalk.red('❌')} ${err.error}${err.context ? chalk.gray(` [${err.context}]`) : ''}`);
+        }
+      }
+      if (Object.keys(summary.toolDistribution).length > 0) {
+        console.log();
+        console.log(chalk.bold('Tool usage:'));
+        const sorted = Object.entries(summary.toolDistribution).sort((a, b) => b[1] - a[1]);
+        for (const [name, count] of sorted) {
+          console.log(`  ${name.padEnd(20)} ${String(count).padStart(3)}x`);
+        }
+      }
+      if (summary.modeSwitches.length > 0) {
+        console.log();
+        console.log(chalk.bold('Mode switches:'));
+        for (const ms of summary.modeSwitches) {
+          console.log(`  ${ms.from} → ${ms.to} ${chalk.gray(ms.timestamp)}`);
+        }
+      }
+      console.log();
+      return;
+    }
+
+    if (options.stats) {
+      const stats = aggregateStats();
+      if (!stats) {
+        console.log(chalk.gray('No traces found'));
+        return;
+      }
+      console.log(chalk.blue('\n📈 Aggregate Statistics\n'));
+      console.log(`Sessions:      ${stats.totalSessions}`);
+      console.log(`Total time:    ${formatDuration(stats.totalDurationMs)}`);
+      console.log(`Total APIs:    ${stats.totalApiCalls}`);
+      console.log(`Total tools:   ${stats.totalToolCalls}`);
+      console.log(`Total errors:  ${stats.totalErrors}`);
+      console.log(`Total tokens:  ${stats.totalTokens.toLocaleString()}`);
+      console.log(`Est. cost:     ${formatCost(stats.totalEstimatedCost)}`);
+      console.log();
+      console.log(`Avg duration:  ${formatDuration(stats.avgDurationMs)}`);
+      console.log(`Avg API calls: ${stats.avgApiCalls}`);
+      console.log(`Avg tool calls: ${stats.avgToolCalls}`);
+      console.log(`Avg tokens:    ${stats.avgTokens.toLocaleString()}`);
+      console.log(`Error rate:    ${(stats.errorRate * 100).toFixed(1)}%`);
+      if (stats.topTools.length > 0) {
+        console.log();
+        console.log(chalk.bold('Top tools:'));
+        for (const t of stats.topTools) {
+          console.log(`  ${t.name.padEnd(20)} ${String(t.count).padStart(4)}x`);
+        }
+      }
+      console.log();
+      return;
+    }
+
+    if (options.compare) {
+      const ids = options.compare.split(',').map((s: string) => s.trim());
+      if (ids.length !== 2) {
+        console.log(chalk.red('Usage: --compare id1,id2'));
+        return;
+      }
+      const comparison = compareSessions(ids[0], ids[1]);
+      if (!comparison) {
+        console.log(chalk.red('One or both traces not found'));
+        return;
+      }
+      const { left, right, deltas } = comparison;
+      console.log(chalk.blue('\n⚖️  Trace Comparison\n'));
+      console.log(`               ${left.sessionId.slice(0, 20).padEnd(20)} ${right.sessionId.slice(0, 20).padEnd(20)} ${chalk.bold('Delta')}`);
+      console.log('─'.repeat(80));
+      const row = (label: string, l: string, r: string, d: string, color?: boolean) => {
+        const deltaStr = color ? (d.startsWith('+') ? chalk.green(d) : d.startsWith('-') ? chalk.red(d) : d) : d;
+        console.log(`${label.padEnd(12)} ${l.padEnd(20)} ${r.padEnd(20)} ${deltaStr}`);
+      };
+      row('Duration', formatDuration(left.durationMs), formatDuration(right.durationMs),
+        `${deltas.durationMs >= 0 ? '+' : ''}${formatDuration(Math.abs(deltas.durationMs))}`, true);
+      row('API calls', String(left.apiCalls), String(right.apiCalls),
+        `${deltas.apiCalls >= 0 ? '+' : ''}${deltas.apiCalls}`, true);
+      row('Tool calls', String(left.toolCalls), String(right.toolCalls),
+        `${deltas.toolCalls >= 0 ? '+' : ''}${deltas.toolCalls}`, true);
+      row('Errors', String(left.errors), String(right.errors),
+        `${deltas.errors >= 0 ? '+' : ''}${deltas.errors}`, true);
+      row('Tokens', left.totalTokens.toLocaleString(), right.totalTokens.toLocaleString(),
+        `${deltas.totalTokens >= 0 ? '+' : ''}${deltas.totalTokens.toLocaleString()}`, true);
+      row('Est. cost', formatCost(left.estimatedCost), formatCost(right.estimatedCost),
+        `${deltas.estimatedCost >= 0 ? '+' : ''}${formatCost(Math.abs(deltas.estimatedCost))}`, true);
+      console.log();
+      return;
+    }
+
+    // Default: show help
+    console.log(chalk.blue('\n📋 Trace Commands\n'));
+    console.log('  ' + chalk.cyan('horus trace --list') + '              List all traces');
+    console.log('  ' + chalk.cyan('horus trace --view <id>') + '         View specific trace');
+    console.log('  ' + chalk.cyan('horus trace --latest') + '            View most recent trace');
+    console.log('  ' + chalk.cyan('horus trace --analyze <id>') + '      Analyze trace summary');
+    console.log('  ' + chalk.cyan('horus trace --stats') + '             Aggregate statistics');
+    console.log('  ' + chalk.cyan('horus trace --compare id1,id2') + ' Compare two traces');
+    console.log();
   });
 
 program

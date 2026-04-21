@@ -1,0 +1,4 @@
+name = "Multi-File Refactoring"
+timeout = 120
+tags = ["refactoring", "multi_step", "complex"]
+description = "Refactor multiple files to use a shared utility function"

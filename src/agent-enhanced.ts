@@ -15,7 +15,9 @@ import { TokenManager, getTokenManager } from './token-manager.js';
 import { SessionPersistence, getSessionPersistence } from './session-persistence.js';
 import { Logger } from './utils/logger.js';
 import { ModeController, ModeType, getModeController } from './mode-controller.js';
-import { ContextLoader, estimateProjectSize } from './context-loader.js';
+import { Tracer } from './utils/tracer.js';
+import { ContextCompactor } from './context-compactor.js';
+import { ToolSelector } from './utils/tool-selector.js';
 
 export interface EnhancedAgentConfig {
   kimi: KimiClient;
@@ -28,6 +30,7 @@ export interface EnhancedAgentConfig {
   logger?: Logger;
   mode?: ModeType;
   showThinking?: boolean;
+  turbo?: boolean;
 }
 
 export class EnhancedAgent {
@@ -49,6 +52,12 @@ export class EnhancedAgent {
   private sessionPersistence: SessionPersistence;
   private logger: Logger;
   private isRunning: boolean = false;
+  private turbo: boolean;
+  private tracer: Tracer;
+  private sessionStartTime: number = 0;
+  private contextCompactor: ContextCompactor;
+  private toolSelector: ToolSelector;
+  private recentlyCalledTools: Set<string> = new Set();
 
   constructor(config: EnhancedAgentConfig) {
     this.kimi = config.kimi;
@@ -60,7 +69,16 @@ export class EnhancedAgent {
     this.planMode = config.planMode ?? false;
     this.logger = config.logger || new Logger('agent');
     this.showThinking = config.showThinking ?? false;
-    
+    this.turbo = config.turbo ?? false;
+    this.tracer = new Tracer('pending', true);
+    this.contextCompactor = new ContextCompactor({
+      enabled: process.env.HORUS_COMPACTION !== '0',
+    });
+    this.toolSelector = new ToolSelector({
+      maxTools: 16,
+      coreTools: ['view', 'edit', 'bash', 'search'],
+    });
+
     // Initialize mode controller
     this.modeController = getModeController();
     if (config.mode) {
@@ -73,13 +91,13 @@ export class EnhancedAgent {
     this.sessionPersistence = getSessionPersistence({}, this.logger);
   }
 
-  async run(task: string, cwd: string, options?: { planMode?: boolean; resumeFromCheckpoint?: string }): Promise<void> {
+  async run(task: string, cwd: string, options?: { planMode?: boolean; resumeFromCheckpoint?: string; fresh?: boolean }): Promise<void> {
     this.cwd = cwd;
     this.iterationCount = 0;
     const usePlanMode = options?.planMode ?? this.planMode;
 
-    // Check for crashed session
-    if (!options?.resumeFromCheckpoint) {
+    // Check for crashed session (skip if --fresh flag is set)
+    if (!options?.resumeFromCheckpoint && !options?.fresh) {
       const crashedSession = await this.sessionPersistence.checkForCrashedSession();
       if (crashedSession) {
         const resume = await this.askYesNo(`Found crashed session from ${new Date(crashedSession.timestamp).toLocaleString()}. Resume?`, true);
@@ -93,6 +111,11 @@ export class EnhancedAgent {
     await this.memory.startSession(cwd);
     const session = this.memory.getCurrentSession();
     this.ui.showSessionStart(session!.id, cwd);
+
+    // Initialize tracer with real session ID
+    this.tracer = new Tracer(session!.id, true);
+    this.sessionStartTime = Date.now();
+    this.tracer.recordSessionStart(cwd, this.modeController.getMode(), this.turbo ? 'kimi-k2-turbo-preview' : (this.modeController.getModel() || 'default'));
 
     // Initialize managers
     this.checkpointManager = this.memory.checkpointManager;
@@ -118,12 +141,51 @@ export class EnhancedAgent {
         // DIRECT MODE: Execute task directly
         await this.runDirect(task);
       }
+      
+      // Auto-extract memories from task completion
+      await this.autoExtractTaskMemory(task);
+      
     } finally {
       // Cleanup
       this.isRunning = false;
       this.sessionPersistence.stopAutoSave();
       await this.memory.endSession();
       this.ui.showSessionEnd();
+      this.tracer.recordSessionEnd(Date.now() - this.sessionStartTime, this.iterationCount);
+    }
+  }
+
+  /**
+   * Extract memories from completed tasks
+   */
+  private async autoExtractTaskMemory(task: string): Promise<void> {
+    const session = this.memory.getCurrentSession();
+    if (!session) return;
+
+    try {
+      // Store the task itself as context
+      await this.memory.storeFact(
+        'task_history',
+        `Completed task: ${task.substring(0, 500)}`,
+        session.id,
+        0.5
+      );
+      
+      // Extract file patterns from task
+      const fileMatches = task.match(/[\w\/\.-]+\.(ts|js|py|rs|go|java|rb)/g);
+      if (fileMatches) {
+        for (const file of [...new Set(fileMatches)].slice(0, 5)) {
+          await this.memory.storeFact(
+            'code',
+            `Task referenced: ${file}`,
+            session.id,
+            0.6
+          );
+        }
+      }
+      
+    } catch {
+      // Best effort - ignore errors
     }
   }
 
@@ -138,6 +200,11 @@ export class EnhancedAgent {
     await this.memory.startSession(cwd);
     const session = this.memory.getCurrentSession();
     this.ui.showSessionStart(session!.id, cwd);
+
+    // Initialize tracer with real session ID
+    this.tracer = new Tracer(session!.id, true);
+    this.sessionStartTime = Date.now();
+    this.tracer.recordSessionStart(cwd, this.modeController.getMode(), this.turbo ? 'kimi-k2-turbo-preview' : (this.modeController.getModel() || 'default'));
 
     // Initialize managers
     this.checkpointManager = this.memory.checkpointManager;
@@ -181,7 +248,9 @@ export class EnhancedAgent {
         this.isRunning = true;
         this.iterationCount = 0; // Reset for each message
         
-        console.log(chalk.gray('[Sending to AI...]'));
+        if (this.ui.getVerbosity() !== 'quiet') {
+          console.log(chalk.gray('[Sending to AI...]'));
+        }
         
         try {
           while (this.isRunning && this.iterationCount < this.maxIterations) {
@@ -194,6 +263,10 @@ export class EnhancedAgent {
         }
         
         this.isRunning = false;
+        
+        // Auto-extract and store memories from this turn
+        await this.autoExtractMemories(input);
+        
         console.log(); // Add spacing between turns
       }
     } finally {
@@ -201,7 +274,126 @@ export class EnhancedAgent {
       this.sessionPersistence.stopAutoSave();
       await this.memory.endSession();
       this.ui.showSessionEnd();
+      this.tracer.recordSessionEnd(Date.now() - this.sessionStartTime, this.iterationCount);
     }
+  }
+
+  /**
+   * Automatically extract and store memories from conversation
+   */
+  private async autoExtractMemories(userInput: string): Promise<void> {
+    const session = this.memory.getCurrentSession();
+    if (!session) return;
+
+    try {
+      // Get recent messages for context
+      const messages = this.memory.getMessages();
+      const recentMessages = messages.slice(-6); // Last 6 messages
+      
+      // Extract potential facts from user input
+      const facts = this.extractFactsFromInput(userInput);
+      
+      for (const fact of facts) {
+        await this.memory.storeFact(
+          fact.category,
+          fact.content,
+          session.id,
+          fact.confidence
+        );
+        
+        if (this.ui.getVerbosity() !== 'quiet') {
+          console.log(chalk.gray(`[Auto-memory: ${fact.category}]`));
+        }
+      }
+      
+      // Extract facts from conversation context
+      const validMessages = recentMessages
+        .filter((m): m is typeof m & { content: string } => typeof m.content === 'string');
+      const conversationFacts = this.extractFactsFromConversation(validMessages);
+      
+      for (const fact of conversationFacts) {
+        await this.memory.storeFact(
+          fact.category,
+          fact.content,
+          session.id,
+          fact.confidence
+        );
+      }
+      
+    } catch (error) {
+      // Silently fail - memory extraction is best-effort
+      if (this.ui.getVerbosity() === 'verbose') {
+        console.log(chalk.gray('[Memory extraction skipped]'));
+      }
+    }
+  }
+
+  /**
+   * Extract facts from user input patterns
+   */
+  private extractFactsFromInput(input: string): Array<{category: string; content: string; confidence: number}> {
+    const facts: Array<{category: string; content: string; confidence: number}> = [];
+    const lower = input.toLowerCase();
+    
+    // Pattern: "my X is Y" or "I am Y" or "I like Y"
+    const preferencePatterns = [
+      { regex: /my (?:favorite|favourite) (\w+) is (.+)/i, category: 'preference' },
+      { regex: /i (?:like|love|enjoy|prefer) (.+)/i, category: 'preference' },
+      { regex: /i (?:dislike|hate|don't like) (.+)/i, category: 'preference' },
+      { regex: /i am (?:a|an) (.+)/i, category: 'identity' },
+      { regex: /i work (?:on|with|at) (.+)/i, category: 'work' },
+      { regex: /my (\w+) (?:is|are) (.+)/i, category: 'personal' },
+    ];
+    
+    for (const pattern of preferencePatterns) {
+      const match = input.match(pattern.regex);
+      if (match) {
+        facts.push({
+          category: pattern.category,
+          content: match[0],
+          confidence: 0.8,
+        });
+      }
+    }
+    
+    // Project context patterns
+    if (lower.includes('project') || lower.includes('repo') || lower.includes('codebase')) {
+      facts.push({
+        category: 'context',
+        content: `Working on: ${input.substring(0, 200)}`,
+        confidence: 0.6,
+      });
+    }
+    
+    return facts;
+  }
+
+  /**
+   * Extract facts from conversation messages
+   */
+  private extractFactsFromConversation(messages: Array<{role: string; content: string}>): Array<{category: string; content: string; confidence: number}> {
+    const facts: Array<{category: string; content: string; confidence: number}> = [];
+    
+    // Look for successful tool executions that reveal project structure
+    const toolResults = messages.filter(m => m.role === 'tool');
+    
+    for (const result of toolResults) {
+      // Extract file paths from tool results
+      const pathMatches = result.content.match(/[\w\/\.-]+\.(ts|js|py|rs|go|java|rb)/g);
+      if (pathMatches && pathMatches.length > 0) {
+        // Store unique file paths as code context
+        const uniquePaths = [...new Set(pathMatches)].slice(0, 3);
+        for (const path of uniquePaths) {
+          facts.push({
+            category: 'code',
+            content: `Project contains: ${path}`,
+            confidence: 0.7,
+          });
+        }
+      }
+    }
+    
+    return facts;
   }
 
   private async resumeFromCheckpoint(checkpointId: string): Promise<void> {
@@ -279,18 +471,23 @@ export class EnhancedAgent {
       // Create checkpoint if needed
       if (step.checkpoint && this.autoCheckpoint) {
         this.ui.writeLine(`\n💾 Creating checkpoint: ${step.description}`);
-        await this.checkpointManager!.create(step.description, this.memory.getCurrentSession()!.id);
+        const session = this.memory.getCurrentSession();
+        if (this.checkpointManager && session) {
+          await this.checkpointManager.create(step.description, session.id);
+        }
         
         // Also create session checkpoint
-        await this.sessionPersistence.createCheckpoint({
-          sessionId: this.memory.getCurrentSession()!.id,
-          messages: this.memory.getMessages(),
-          workingDirectory: this.cwd,
-          currentPlan: plan,
-          metadata: {
-            iterationCount: this.iterationCount,
-          },
-        });
+        if (session) {
+          await this.sessionPersistence.createCheckpoint({
+            sessionId: session.id,
+            messages: this.memory.getMessages(),
+            workingDirectory: this.cwd,
+            currentPlan: plan,
+            metadata: {
+              iterationCount: this.iterationCount,
+            },
+          });
+        }
       }
 
       // Execute step with error handling
@@ -300,9 +497,9 @@ export class EnhancedAgent {
         this.ui.error(`Step failed: ${step.description}`);
         
         // Offer rollback
-        if (step.checkpoint) {
+        if (step.checkpoint && this.checkpointManager) {
           this.ui.writeLine('\n↩️  Rolling back to checkpoint...');
-          await this.checkpointManager!.rollback();
+          await this.checkpointManager.rollback();
         }
         
         break;
@@ -315,6 +512,11 @@ export class EnhancedAgent {
 
   private async runDirect(task: string): Promise<void> {
     this.isRunning = true;
+    
+    // Initialize checkpoint manager from memory if available
+    if (!this.checkpointManager) {
+      this.checkpointManager = this.memory.checkpointManager;
+    }
 
     // Add initial system prompt
     await this.memory.addMessage({
@@ -329,8 +531,11 @@ export class EnhancedAgent {
     });
 
     // Create initial checkpoint if auto-checkpoint enabled
-    if (this.autoCheckpoint) {
-      await this.checkpointManager!.create('Initial state', this.memory.getCurrentSession()!.id);
+    if (this.autoCheckpoint && this.checkpointManager) {
+      const session = this.memory.getCurrentSession();
+      if (session) {
+        await this.checkpointManager.create('Initial state', session.id);
+      }
     }
 
     // Main loop with error recovery
@@ -403,7 +608,19 @@ export class EnhancedAgent {
       await this.compressContext();
     }
 
-    const toolDefinitions: ToolDefinition[] = Array.from(this.tools.values()).map(tool => ({
+    // STREAM
+    const chunks: string[] = [];
+    const reasoningChunks: string[] = [];
+    const toolCalls: ToolCall[] = [];
+
+    // Get mode configuration
+    const modeConfig = this.modeController.getConfig();
+
+    // On-demand tool discovery: select relevant tools instead of loading all ~20
+    const toolContext = lastMessage?.content || '';
+    const selectedTools = this.toolSelector.select(this.tools, toolContext, Array.from(this.recentlyCalledTools));
+    this.recentlyCalledTools.clear(); // Reset for next turn
+    const effectiveTools: ToolDefinition[] = selectedTools.map(tool => ({
       type: 'function',
       function: {
         name: tool.name,
@@ -412,18 +629,24 @@ export class EnhancedAgent {
       },
     }));
 
-    // STREAM
-    const chunks: string[] = [];
-    const reasoningChunks: string[] = [];
-    const toolCalls: ToolCall[] = [];
+    // Log tool selection in verbose mode
+    if (this.ui.getVerbosity() === 'verbose') {
+      const allNames = Array.from(this.tools.keys());
+      const selectedNames = selectedTools.map(t => t.name);
+      const dropped = allNames.filter(n => !selectedNames.includes(n));
+      if (dropped.length > 0) {
+        console.log(chalk.gray(`[Tools: ${selectedNames.length}/${allNames.length} active — dropped: ${dropped.join(', ')}]`));
+      }
+    }
 
-    // Get mode configuration
-    const modeConfig = this.modeController.getConfig();
-    // Tools are ALWAYS enabled in all modes - the harness never kneecaps the agent
-    const effectiveTools = toolDefinitions;
+    this.ui.showApiStart(contextMessages.length);
+    // Mode info shown in verbose mode only
+    if (this.ui.getVerbosity() === 'verbose') {
+      console.log(chalk.gray(`[Mode: ${modeConfig.name}, Temp: ${modeConfig.temperature}, Tools: ${effectiveTools.length} enabled]`));
+    }
 
-    console.log(chalk.gray(`[Calling API with ${contextMessages.length} messages...]`));
-    console.log(chalk.gray(`[Mode: ${modeConfig.name}, Temp: ${modeConfig.temperature}, Tools: ${effectiveTools.length} enabled]`));
+    const streamModel = this.turbo ? 'kimi-k2-turbo-preview' : (modeConfig.model || undefined);
+    this.tracer.recordApiCall(contextMessages.length, effectiveTools.length, modeConfig.temperature, streamModel);
 
     let doneHandled = false;
     try {
@@ -432,6 +655,7 @@ export class EnhancedAgent {
         maxTokens: modeConfig.maxTokens,
         thinking: modeConfig.thinking,
         topP: modeConfig.topP,
+        model: streamModel,
       })) {
         switch (chunk.type) {
           case 'token':
@@ -458,6 +682,10 @@ export class EnhancedAgent {
           case 'done':
             if (!doneHandled) {
               doneHandled = true;
+              if (chunk.usage) {
+                this.tracer.recordTokenUsage(chunk.usage.promptTokens, chunk.usage.completionTokens);
+              }
+              this.tracer.recordApiResponse(chunks.join(''), reasoningChunks.join(''), toolCalls.length);
               if (chunks.length > 0 || toolCalls.length > 0) {
                 await this.memory.addMessage({
                   role: 'assistant',
@@ -476,7 +704,7 @@ export class EnhancedAgent {
         }
       }
     } catch (error) {
-      // Let error handler deal with API errors
+      this.tracer.recordError(error instanceof Error ? error.message : 'Unknown API error', 'api_stream');
       throw error;
     }
 
@@ -490,8 +718,11 @@ export class EnhancedAgent {
       await this.executeToolCallWithRecovery(toolCall);
       
       // Auto-checkpoint on edit operations
-      if (toolCall.function.name === 'edit' && this.autoCheckpoint) {
-        await this.checkpointManager!.create(`After ${toolCall.function.name}`, this.memory.getCurrentSession()!.id);
+      if (toolCall.function.name === 'edit' && this.autoCheckpoint && this.checkpointManager) {
+        const session = this.memory.getCurrentSession();
+        if (session) {
+          await this.checkpointManager.create(`After ${toolCall.function.name}`, session.id);
+        }
       }
     }
 
@@ -557,6 +788,8 @@ export class EnhancedAgent {
     }
 
     this.ui.showToolExecuting(tool.name);
+    this.tracer.recordToolCall(tool.name, args);
+    this.recentlyCalledTools.add(tool.name);
     const context: ToolContext = {
       cwd: this.cwd,
       sessionId: this.memory.getCurrentSession()?.id,
@@ -585,6 +818,8 @@ export class EnhancedAgent {
       }
 
       const duration = Date.now() - startTime;
+      const isError = result.startsWith('Error:');
+      this.tracer.recordToolResult(tool.name, result, duration, isError);
 
       await this.memory.addMessage({
         role: 'tool',
@@ -592,7 +827,7 @@ export class EnhancedAgent {
         content: result.substring(0, 8000),
       });
 
-      const outcomeType = result.startsWith('Error:') ? 'error' : 'success';
+      const outcomeType = isError ? 'error' : 'success';
       await this.memory.recordEpisode(
         tool.name,
         `Tool call: ${tool.name} with args ${JSON.stringify(args)}`,
@@ -602,6 +837,7 @@ export class EnhancedAgent {
       );
 
     } catch (error) {
+      this.tracer.recordError(error instanceof Error ? error.message : 'Unknown tool error', `tool:${tool.name}`);
       const recovery = await this.errorHandler.handle(error as Error, {
         operation: 'executeToolCall',
         tool: tool.name,
@@ -627,7 +863,7 @@ export class EnhancedAgent {
     const messages = this.memory.getMessages();
     const target = this.tokenManager.getCompressionTarget();
     const toCompress = this.tokenManager.suggestMessagesToCompress(messages, target.currentTokens - target.targetTokens);
-    
+
     if (toCompress > 0) {
       this.ui.writeLine(`\n[Compressing ${toCompress} messages to save tokens...]`);
       await this.memory.compressOldestMessages?.();
@@ -689,79 +925,32 @@ Return JSON:
   }
 
   private async buildContext(memories: RecalledMemory[]): Promise<Message[]> {
-    const messages: Message[] = [];
+    const allMessages = this.memory.getMessages();
+    const task = this.memory.getLastMessage()?.content || '';
 
-    let systemPrompt = this.getSystemPrompt();
-
-    // Check if we should load full codebase into context (Kimi 256K optimization)
-    const projectEstimate = await estimateProjectSize(this.cwd);
-    if (projectEstimate.fitsInContext && projectEstimate.fileCount > 0) {
-      console.log(chalk.gray(`[Loading ${projectEstimate.fileCount} files (${Math.round(projectEstimate.estimatedTokens/1000)}K tokens) into context...]`));
-      const loader = new ContextLoader({ rootPath: this.cwd });
-      const { files, totalTokens, truncated } = await loader.loadContext();
-      if (files.length > 0) {
-        const codebaseContext = loader.formatForContext(files);
-        systemPrompt += '\n\n' + codebaseContext;
-        console.log(chalk.gray(`[Context loaded: ${files.length} files, ~${Math.round(totalTokens/1000)}K tokens${truncated ? ', truncated' : ''}]`));
-      }
-    }
-
-    if (memories.length > 0) {
-      const memoryContext = this.formatMemoriesForContext(memories);
-      systemPrompt += '\n\n' + memoryContext;
-    }
-
-    messages.push({
-      role: 'system',
-      content: systemPrompt,
+    const { messages, tierUsage, totalTokens } = await this.contextCompactor.buildContext({
+      systemPrompt: this.getSystemPrompt(),
+      messages: allMessages,
+      memories,
+      task,
+      memory: this.memory,
+      tokenManager: this.tokenManager,
+      cwd: this.cwd,
     });
 
-    const history = this.memory.getMessages();
-    for (const msg of history.slice(1)) {
-      messages.push({
-        role: msg.role,
-        content: msg.content,
-        reasoning_content: msg.reasoningContent,
-        tool_calls: msg.toolCalls ? JSON.parse(msg.toolCalls) : undefined,
-        tool_call_id: msg.toolCallId,
-      });
+    // Update token manager with tier breakdown
+    this.tokenManager.updateUsage({ messages: totalTokens });
+    this.tokenManager.updateTierUsage(tierUsage);
+
+    // Log tier breakdown in verbose mode
+    if (this.ui.getVerbosity() === 'verbose') {
+      const breakdown = this.tokenManager.getTierBreakdown();
+      if (breakdown) {
+        console.log(chalk.gray(`[Context tiers: ${breakdown}]`));
+      }
     }
 
     return messages;
-  }
-
-  private formatMemoriesForContext(memories: RecalledMemory[]): string {
-    const lines: string[] = [];
-    lines.push('=== RELEVANT MEMORIES ===');
-
-    const episodes = memories.filter(m => m.type === 'episode');
-    const facts = memories.filter(m => m.type === 'fact');
-    const code = memories.filter(m => m.type === 'code' || m.type === 'file');
-
-    if (facts.length > 0) {
-      lines.push('\nKnown Facts:');
-      for (const fact of facts.slice(0, 5)) {
-        lines.push(`- ${fact.content}`);
-      }
-    }
-
-    if (episodes.length > 0) {
-      lines.push('\nPast Actions:');
-      for (const ep of episodes.slice(0, 5)) {
-        const date = ep.timestamp ? new Date(ep.timestamp).toLocaleDateString() : 'unknown';
-        lines.push(`- [${date}] ${ep.content.split('\n')[0]}`);
-      }
-    }
-
-    if (code.length > 0) {
-      lines.push('\nRelevant Code:');
-      for (const c of code.slice(0, 3)) {
-        lines.push(`- ${c.source || 'unknown'}`);
-      }
-    }
-
-    lines.push('=== END MEMORIES ===');
-    return lines.join('\n');
   }
 
   private getSystemPrompt(): string {

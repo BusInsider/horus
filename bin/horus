@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+/**
+ * Horus CLI launcher with automatic native module repair
+ */
+
+const { spawn, execSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const HORUS_DIR = path.join(__dirname, '..');
+const CHECK_SCRIPT = path.join(HORUS_DIR, 'scripts', 'check-native.js');
+
+// First, check if native modules are valid
+let needsRebuild = false;
+
+try {
+  // Quick check - try to require better-sqlite3
+  require('better-sqlite3');
+} catch (err) {
+  if (err.message.includes('NODE_MODULE_VERSION') || err.message.includes('Cannot find module')) {
+    needsRebuild = true;
+  }
+}
+
+// If rebuild needed, do it now
+if (needsRebuild) {
+  console.log('🔧 Native modules need rebuilding...');
+  console.log(`Node ABI version: ${process.versions.modules}`);
+  
+  try {
+    execSync('npm rebuild better-sqlite3', {
+      cwd: HORUS_DIR,
+      stdio: 'inherit',
+      timeout: 120000,
+    });
+    console.log('✅ Native modules rebuilt successfully\n');
+  } catch (rebuildErr) {
+    console.error('\n❌ Failed to rebuild native modules');
+    console.error('Try running manually:');
+    console.error('  cd ~/.hermes/workspace/horus');
+    console.error('  npm rebuild better-sqlite3');
+    process.exit(1);
+  }
+}
+
+// Now run the actual CLI
+require('../dist/cli-enhanced.js');

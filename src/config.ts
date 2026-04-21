@@ -5,7 +5,7 @@ import { homedir } from 'os';
 export interface Config {
   provider: {
     apiKey: string;
-    model: 'kimi-k2-5' | 'kimi-latest';
+    model: 'kimi-k2-5' | 'kimi-k2-6' | 'kimi-k2-6-preview' | 'kimi-latest';
     baseUrl: string;
   };
   memory: {
@@ -19,6 +19,7 @@ export interface Config {
     mode: 'auto' | 'semi' | 'review';
     maxIterations: number;
     showMemoryOperations: boolean;
+    verbosity: 'quiet' | 'normal' | 'verbose';
   };
   workspace: {
     defaultPath: string;
@@ -36,13 +37,14 @@ const DEFAULT_CONFIG: Config = {
     dbPath: '~/.horus/memory.db',
     embeddingModel: 'Xenova/all-MiniLM-L6-v2',
     maxWorkingTokens: 50000,
-    recallThreshold: 0.7,
+    recallThreshold: 0.5,
     maxRecalledMemories: 10,
   },
   agent: {
     mode: 'semi',
     maxIterations: 50,
     showMemoryOperations: true,
+    verbosity: 'normal',
   },
   workspace: {
     defaultPath: '~/workspace',

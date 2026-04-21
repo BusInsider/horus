@@ -182,10 +182,11 @@ The flywheel: More usage → More traces → More evals → Better harness → M
 | Build | ✅ Passing |
 | Bundle | 3.1 MB |
 | Tests | 39/39 pass |
-| Type Errors | 6 (pre-existing) |
+| Type Errors | 0 ✅ |
 | Base Tools | 20 |
 | Dynamic Skills | Unlimited |
 | Evals | 0 (Phase 3 goal: 50+) |
+| K2.6 Support | ✅ Added |
 
 ---
 

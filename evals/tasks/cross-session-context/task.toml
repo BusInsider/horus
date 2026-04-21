@@ -1,0 +1,4 @@
+name = "Cross Session Context"
+timeout = 90
+tags = ["memory", "context", "workspace_awareness"]
+description = "Agent must read previous session notes stored in the workspace"

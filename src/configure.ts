@@ -38,7 +38,7 @@ export async function runConfigureWizard(): Promise<void> {
 
   // Step 1: API Configuration
   console.log(chalk.yellow('Step 1: API Configuration'));
-  console.log('Horus uses Kimi K2.5 by default.\n');
+  console.log('Horus supports Kimi K2.5 and K2.6 models.\n');
 
   const apiKey = await ask(`API Key ${config.provider.apiKey ? '(currently set, press Enter to keep)' : '(required)'}: `);
   if (apiKey.trim()) {
@@ -65,7 +65,7 @@ export async function runConfigureWizard(): Promise<void> {
 
   const model = await ask(`Model [${config.provider.model}]: `);
   if (model.trim()) {
-    config.provider.model = model as 'kimi-k2-5' | 'kimi-latest';
+    config.provider.model = model as 'kimi-k2-5' | 'kimi-k2-6' | 'kimi-k2-6-preview' | 'kimi-latest';
   }
 
   // Step 2: Workspace
@@ -243,6 +243,7 @@ export async function resetConfiguration(): Promise<void> {
       mode: 'semi',
       maxIterations: 50,
       showMemoryOperations: true,
+      verbosity: 'normal',
     },
     workspace: {
       defaultPath: '~/workspace',

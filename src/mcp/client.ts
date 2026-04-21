@@ -105,7 +105,7 @@ export class MCPClient {
 
       return {
         content: result.content as (TextContent | ImageContent)[],
-        isError: result.isError,
+        isError: !!result.isError,
       };
     } catch (error) {
       this.logger.error(`Tool call failed: ${serverName}/${toolName}`, error);

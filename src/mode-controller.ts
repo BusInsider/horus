@@ -18,6 +18,8 @@ export interface ModeConfig {
   showThinking: boolean;
   /** Expected latency tier */
   latency: 'low' | 'medium' | 'high';
+  /** Model override for this mode (falls back to config default if not set) */
+  model?: string;
 }
 
 export const MODE_CONFIGS: Record<ModeType, ModeConfig> = {
@@ -29,11 +31,12 @@ export const MODE_CONFIGS: Record<ModeType, ModeConfig> = {
     thinking: { type: 'disabled' },
     toolsEnabled: true, // ALWAYS true - never kneecap the agent
     maxTokens: 2000,
-    costPerMInput: 0.60,
-    costPerMOutput: 2.50,
-    useCase: 'Quick edits, file lookups, simple automation (cheap & fast)',
+    costPerMInput: 1.15,
+    costPerMOutput: 8.00,
+    useCase: 'Quick edits, file lookups, simple automation (turbo speed)',
     showThinking: false,
     latency: 'low',
+    model: 'kimi-k2-turbo-preview',
   },
   balanced: {
     name: 'Balanced',
@@ -152,6 +155,13 @@ export class ModeController {
    */
   getLatency(): 'low' | 'medium' | 'high' {
     return MODE_CONFIGS[this.currentMode].latency;
+  }
+
+  /**
+   * Get model override for current mode, if any
+   */
+  getModel(): string | undefined {
+    return MODE_CONFIGS[this.currentMode].model;
   }
 
   /**

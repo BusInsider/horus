@@ -19,10 +19,15 @@ export interface DiagnosticResult {
 export class Doctor {
   private results: DiagnosticResult[] = [];
 
+  getResults(): DiagnosticResult[] {
+    return this.results;
+  }
+
   async runAllChecks(): Promise<DiagnosticResult[]> {
     this.results = [];
 
     await this.checkNodeVersion();
+    await this.checkNativeModules();
     await this.checkDependencies();
     await this.checkConfig();
     await this.checkApiConnection();
@@ -52,6 +57,60 @@ export class Doctor {
       }
     } catch (error) {
       this.addResult('Environment', 'Node.js Version', 'fail', 'Could not determine Node.js version');
+    }
+  }
+
+  async checkNativeModules(): Promise<void> {
+    try {
+      // Try to require better-sqlite3 - this will fail with version mismatch if wrong
+      require('better-sqlite3');
+      this.addResult('Native Modules', 'better-sqlite3', 'pass', 'Loaded successfully');
+    } catch (err: any) {
+      if (err.message.includes('NODE_MODULE_VERSION')) {
+        const currentABI = process.versions.modules;
+        this.addResult('Native Modules', 'better-sqlite3', 'fail', 
+          `Version mismatch (Node ABI: ${currentABI})`,
+          'Run `horus doctor --fix` to rebuild');
+      } else {
+        this.addResult('Native Modules', 'better-sqlite3', 'fail', 
+          err.message,
+          'Run `horus doctor --fix` to rebuild');
+      }
+    }
+
+    try {
+      // Check if onnxruntime loads (used by transformers)
+      require.resolve('onnxruntime-node');
+      this.addResult('Native Modules', 'onnxruntime-node', 'pass', 'Found');
+    } catch {
+      this.addResult('Native Modules', 'onnxruntime-node', 'warn', 'Not found (optional)');
+    }
+  }
+
+  async fixNativeModules(): Promise<boolean> {
+    console.log(chalk.yellow('\n🔧 Attempting to fix native modules...\n'));
+    
+    try {
+      execSync('npm rebuild better-sqlite3', {
+        cwd: join(process.env.HOME || '', '.hermes', 'workspace', 'horus'),
+        stdio: 'inherit',
+        timeout: 120000,
+      });
+      
+      // Verify it worked
+      try {
+        require('better-sqlite3');
+        console.log(chalk.green('\n✅ Native modules fixed successfully!\n'));
+        return true;
+      } catch {
+        console.log(chalk.red('\n❌ Rebuild completed but module still fails to load'));
+        console.log(chalk.yellow('Try: rm -rf node_modules && npm install\n'));
+        return false;
+      }
+    } catch (err) {
+      console.log(chalk.red('\n❌ Failed to rebuild native modules'));
+      console.log(chalk.yellow('Try manually: cd ~/.hermes/workspace/horus && npm rebuild better-sqlite3\n'));
+      return false;
     }
   }
 
@@ -102,11 +161,11 @@ export class Doctor {
       }
 
       // Check model
-      const validModels = ['kimi-k2-5', 'kimi-latest'];
+      const validModels = ['kimi-k2-5', 'kimi-k2-6', 'kimi-k2-6-preview', 'kimi-latest'];
       if (validModels.includes(config.provider.model)) {
         this.addResult('Configuration', 'Model', 'pass', config.provider.model);
       } else {
-        this.addResult('Configuration', 'Model', 'warn', `${config.provider.model} (may not be supported)`);
+        this.addResult('Configuration', 'Model', 'warn', `${config.provider.model} (not a known model, but may work if the endpoint supports it)`);
       }
 
       // Check endpoint type
@@ -314,8 +373,24 @@ export class Doctor {
   }
 }
 
-export async function runDoctor(): Promise<void> {
+export async function runDoctor(options?: { fix?: boolean }): Promise<void> {
   const doctor = new Doctor();
+  
+  // If --fix flag is set, try to fix native modules first
+  if (options?.fix) {
+    const fixed = await doctor.fixNativeModules();
+    if (fixed) {
+      // Re-run checks to confirm
+      await doctor.runAllChecks();
+      doctor.printReport();
+    }
+    process.exit(fixed ? 0 : 1);
+  }
+  
   await doctor.runAllChecks();
   doctor.printReport();
+  
+  // Exit with error code if there are failures
+  const hasFailures = doctor.getResults().some(r => r.status === 'fail');
+  process.exit(hasFailures ? 1 : 0);
 }

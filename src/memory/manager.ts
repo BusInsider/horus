@@ -19,6 +19,7 @@ import {
   embeddingToBuffer,
   bufferToEmbedding,
 } from './embedding.js';
+import { summarizeMessages } from '../utils/message-summarizer.js';
 
 export interface MemoryManagerConfig {
   dbPath: string;
@@ -50,7 +51,7 @@ export class MemoryManager {
   constructor(config: MemoryManagerConfig, subagentConfig?: SubagentConfig) {
     this.config = {
       maxWorkingTokens: 50000,
-      recallThreshold: 0.7,
+      recallThreshold: 0.5, // Lowered from 0.7 - 384-dimensional embeddings need more tolerance
       maxRecalledMemories: 10,
       embeddingModel: 'Xenova/all-MiniLM-L6-v2',
       ...config,
@@ -338,6 +339,22 @@ export class MemoryManager {
     const embedding = await this.embedder.embed(fact);
     const now = Date.now();
 
+    // Check for existing similar facts to avoid duplicates
+    const existingFacts = this.getFacts(category, 50);
+    const SIMILARITY_THRESHOLD = 0.95;
+
+    for (const existing of existingFacts) {
+      if (existing.embedding) {
+        const similarity = this.embedder.similarity(embedding, existing.embedding);
+        if (similarity >= SIMILARITY_THRESHOLD) {
+          // Update existing fact instead of creating duplicate
+          this.updateFactAccess(existing.id, fact, source, confidence);
+          return;
+        }
+      }
+    }
+
+    // No similar fact found - insert new
     const stmt = this.db.prepare(`
       INSERT INTO facts (id, category, fact, source, confidence, created_at, last_accessed, embedding)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -352,6 +369,25 @@ export class MemoryManager {
       now,
       embeddingToBuffer(embedding)
     );
+  }
+
+  private updateFactAccess(
+    id: string,
+    newFact?: string,
+    newSource?: string,
+    newConfidence?: number
+  ): void {
+    const now = Date.now();
+    const stmt = this.db.prepare(`
+      UPDATE facts 
+      SET access_count = access_count + 1,
+          last_accessed = ?,
+          fact = COALESCE(?, fact),
+          source = COALESCE(?, source),
+          confidence = COALESCE(?, confidence)
+      WHERE id = ?
+    `);
+    stmt.run(now, newFact || null, newSource || null, newConfidence || null, id);
   }
 
   getFacts(category?: string, limit: number = 100): Fact[] {
@@ -718,20 +754,33 @@ export class MemoryManager {
   async compressOldestMessages(): Promise<void> {
     if (!this.currentSession) return;
 
-    // Get oldest 4 non-system messages
+    // Get oldest 6 non-system messages
     const rows = this.db
       .prepare(`
         SELECT * FROM messages 
         WHERE session_id = ? AND role != 'system' 
         ORDER BY created_at ASC 
-        LIMIT 4
+        LIMIT 6
       `)
       .all(this.currentSession.id) as any[];
 
     if (rows.length < 2) return; // Can't compress single message
 
-    // Summarize (in real implementation, use LLM)
-    const summary = `[Summarized ${rows.length} messages]`;
+    // Build Message objects for summarizer
+    const messages: Message[] = rows.map(row => ({
+      id: row.id,
+      sessionId: row.session_id,
+      role: row.role,
+      content: row.content,
+      reasoningContent: row.reasoning_content,
+      toolCalls: row.tool_calls,
+      toolCallId: row.tool_call_id,
+      createdAt: row.created_at,
+      tokens: row.tokens,
+    }));
+
+    // Use heuristic summarizer
+    const summary = summarizeMessages(messages);
 
     // Delete old messages
     const deleteStmt = this.db.prepare('DELETE FROM messages WHERE id = ?');

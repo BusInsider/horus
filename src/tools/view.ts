@@ -13,7 +13,7 @@ Respects .gitignore patterns.`,
     properties: {
       path: {
         type: 'string',
-        description: 'Absolute path to the file or directory to view',
+        description: 'Path to the file or directory to view (absolute or relative to working directory)',
       },
       viewRange: {
         type: 'array',

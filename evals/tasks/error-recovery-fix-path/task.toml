@@ -1,0 +1,4 @@
+name = "Error Recovery - Fix Path"
+timeout = 90
+tags = ["error_recovery", "resilience"]
+description = "Test that agent handles file not found errors and corrects the path"

@@ -100,7 +100,7 @@ describe('KimiClient', () => {
       const messages: Message[] = [{ role: 'user', content: 'Hello' }];
       
       // Should return a promise (will fail due to no fetch, but type is correct)
-      const result = client.complete(messages);
+      const result = client.complete(messages).catch(() => ({ content: '' }));
       expect(result).toBeInstanceOf(Promise);
     });
 
@@ -112,7 +112,7 @@ describe('KimiClient', () => {
       const result = client.complete(messages, {
         maxTokens: 100,
         temperature: 0.5,
-      });
+      }).catch(() => ({ content: '' }));
       
       expect(result).toBeInstanceOf(Promise);
     });

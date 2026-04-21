@@ -1,0 +1,4 @@
+name = "Hidden Config Discovery"
+timeout = 90
+tags = ["observation", "tool_selection", "hidden_files"]
+description = "Agent must discover and read a hidden configuration file in a directory listing"

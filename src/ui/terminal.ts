@@ -8,12 +8,23 @@ import { RecalledMemory } from '../memory/manager.js';
 // Configure marked for terminal output
 marked.use(markedTerminal() as any);
 
+export type Verbosity = 'quiet' | 'normal' | 'verbose';
+
 export class TerminalUI {
   // @ts-expect-error Used for tracking streaming state, will be used for UI indicators
   private isStreaming = false;
+  private verbosity: Verbosity;
 
-  constructor() {
-    // No shared readline - we create fresh ones per prompt to avoid conflicts
+  constructor(verbosity: Verbosity = 'normal') {
+    this.verbosity = verbosity;
+  }
+
+  setVerbosity(level: Verbosity): void {
+    this.verbosity = level;
+  }
+
+  getVerbosity(): Verbosity {
+    return this.verbosity;
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -21,15 +32,21 @@ export class TerminalUI {
   // ═══════════════════════════════════════════════════════════
 
   showSessionStart(sessionId: string, cwd: string): void {
+    if (this.verbosity === 'quiet') {
+      // In quiet mode, show nothing at start
+      return;
+    }
+
     console.log(chalk.blue(`\n┌─ Horus Session Started ─┐`));
     console.log(chalk.gray(`│ Session: ${sessionId.slice(0, 8)}`));
     console.log(chalk.gray(`│ Working: ${cwd}`));
     console.log(chalk.blue(`└─────────────────────────┘`));
-    console.log(chalk.gray('\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, exit'));
+    console.log(chalk.gray('\nCommands: /mode, /checkpoint, /rollback, /plan, /agent, /memory, /restart, exit'));
     console.log(chalk.gray('Tools always available - use /mode to adjust speed/cost\n'));
   }
 
   showSessionEnd(): void {
+    if (this.verbosity === 'quiet') return;
     console.log(chalk.blue('\n[Session ended]\n'));
   }
 
@@ -38,11 +55,13 @@ export class TerminalUI {
   // ═══════════════════════════════════════════════════════════
 
   showIndexingStart(): void {
-    process.stdout.write(chalk.gray('[Indexing workspace...] '));
+    if (this.verbosity === 'quiet') return;
+    process.stdout.write(chalk.gray('[Indexing...] '));
   }
 
-  showIndexingComplete(files: number, chunks: number): void {
-    console.log(chalk.gray(`${files} files, ${chunks} chunks indexed`));
+  showIndexingComplete(files: number, _chunks: number): void {
+    if (this.verbosity === 'quiet') return;
+    console.log(chalk.gray(`${files} files indexed`));
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -50,10 +69,13 @@ export class TerminalUI {
   // ═══════════════════════════════════════════════════════════
 
   showRecallStart(): void {
+    if (this.verbosity === 'quiet') return;
     process.stdout.write(chalk.gray('[Recalling memories...] '));
   }
 
   showRecalledMemories(memories: RecalledMemory[]): void {
+    if (this.verbosity === 'quiet') return;
+
     if (memories.length === 0) {
       console.log(chalk.gray('none found'));
       return;
@@ -71,13 +93,28 @@ export class TerminalUI {
 
     console.log(chalk.gray(parts.join(', ')));
 
-    // Show details if interesting
-    if (memories.length > 0) {
+    // Show details in verbose mode
+    if (this.verbosity === 'verbose' && memories.length > 0) {
       for (const mem of memories.slice(0, 3)) {
         const preview = mem.content.split('\n')[0].slice(0, 60);
         console.log(chalk.dim(`  • ${preview}${preview.length >= 60 ? '...' : ''}`));
       }
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // API CALL DISPLAY
+  // ═══════════════════════════════════════════════════════════
+
+  showApiStart(messageCount: number): void {
+    if (this.verbosity === 'quiet') return;
+    if (this.verbosity === 'verbose') {
+      process.stdout.write(chalk.gray(`[Calling API with ${messageCount} messages...]\n`));
+    }
+  }
+
+  showApiComplete(): void {
+    // No-op - handled inline
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -91,7 +128,9 @@ export class TerminalUI {
 
   writeThinking(text: string): void {
     // Display reasoning content in dim gray
-    process.stdout.write(chalk.gray(text));
+    if (this.verbosity === 'verbose') {
+      process.stdout.write(chalk.gray(text));
+    }
   }
 
   writeLine(line: string): void {
@@ -104,21 +143,36 @@ export class TerminalUI {
 
   showToolCall(toolCall: ToolCall): void {
     const name = toolCall.function.name;
+    
+    // Quiet mode: minimal tool indication
+    if (this.verbosity === 'quiet') {
+      process.stdout.write(chalk.cyan(`[${name}] `));
+      return;
+    }
+
+    // Normal/Verbose mode
     const args = toolCall.function.arguments;
     
     // Parse args for display
     let displayArgs: string;
     try {
       const parsed = JSON.parse(args);
+      // Show key params only for cleaner output
+      const keyParams = ['path', 'command', 'query', 'pattern', 'fact'];
       const summary = Object.entries(parsed)
-        .map(([k, v]) => `${k}=${String(v).slice(0, 30)}`)
+        .filter(([k]) => keyParams.some(p => k.toLowerCase().includes(p)))
+        .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
         .join(', ');
       displayArgs = summary.length > 60 ? summary.slice(0, 60) + '...' : summary;
     } catch {
       displayArgs = args.slice(0, 60);
     }
 
-    console.log(chalk.cyan(`\n[${name}: ${displayArgs}]`));
+    if (displayArgs) {
+      console.log(chalk.cyan(`\n[${name}: ${displayArgs}]`));
+    } else {
+      console.log(chalk.cyan(`\n[${name}]`));
+    }
   }
 
   showToolExecuting(_name: string): void {
@@ -126,23 +180,55 @@ export class TerminalUI {
   }
 
   showToolResult(_name: string, result: string): void {
+    if (this.verbosity === 'quiet') return;
+    
     // Result is already streamed or shown inline
-    const lines = result.split('\n').slice(0, 20);
-    if (lines.length > 0 && result.length > 0) {
-      const output = lines.join('\n');
-      if (output.length > 500) {
-        console.log(chalk.gray(output.slice(0, 500) + '...'));
-      } else {
+    const lines = result.split('\n');
+    
+    // In normal mode, show just first few lines
+    if (this.verbosity === 'normal') {
+      const previewLines = lines.slice(0, 5);
+      let output = previewLines.join('\n');
+      
+      if (lines.length > 5 || output.length > 200) {
+        output = output.slice(0, 200);
+        if (!output.endsWith('...')) output += '...';
+      }
+      
+      if (output.length > 0) {
         console.log(chalk.gray(output));
+      }
+    } else if (this.verbosity === 'verbose') {
+      // Verbose mode: show more
+      if (lines.length > 0 && result.length > 0) {
+        const output = lines.slice(0, 20).join('\n');
+        if (output.length > 500) {
+          console.log(chalk.gray(output.slice(0, 500) + '...'));
+        } else {
+          console.log(chalk.gray(output));
+        }
       }
     }
   }
 
+  showToolSuccess(name: string): void {
+    if (this.verbosity === 'quiet') {
+      process.stdout.write(chalk.green('✓ '));
+    } else if (this.verbosity === 'normal') {
+      console.log(chalk.green(`[${name} ✓]`));
+    }
+  }
+
   showToolError(name: string, error: string): void {
-    console.log(chalk.red(`[Error in ${name}: ${error.slice(0, 100)}]`));
+    if (this.verbosity === 'quiet') {
+      console.log(chalk.red(`[${name} ✗]`));
+    } else {
+      console.log(chalk.red(`[${name} ✗: ${error.slice(0, 100)}]`));
+    }
   }
 
   writeToolOutput(chunk: string): void {
+    if (this.verbosity === 'quiet') return;
     process.stdout.write(chunk);
   }
 

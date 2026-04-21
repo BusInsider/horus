@@ -131,10 +131,13 @@ export class LocalEmbeddingModel implements EmbeddingProvider {
 // Buffer conversion utilities for SQLite storage
 export function embeddingToBuffer(embedding: number[]): Buffer {
   const floatArray = new Float32Array(embedding);
-  return Buffer.from(floatArray.buffer);
+  return Buffer.from(floatArray.buffer, floatArray.byteOffset, floatArray.byteLength);
 }
 
 export function bufferToEmbedding(buffer: Buffer): number[] {
-  const floatArray = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / 4);
+  // Create a copy of the buffer data to ensure correct alignment
+  // SQLite may return a Buffer that shares an underlying ArrayBuffer
+  const bufferCopy = Buffer.from(buffer);
+  const floatArray = new Float32Array(bufferCopy.buffer, bufferCopy.byteOffset, bufferCopy.length / 4);
   return Array.from(floatArray);
 }

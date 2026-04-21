@@ -1,0 +1,4 @@
+name = "Large Repository Focus"
+timeout = 120
+tags = ["tool_selection", "efficiency", "search"]
+description = "Find a specific function in a 1000+ file repository quickly"

@@ -15,7 +15,7 @@ For new files, use oldString: "" (empty string).`,
     properties: {
       path: {
         type: 'string',
-        description: 'Absolute path to the file to edit',
+        description: 'Path to the file to edit (absolute or relative to working directory)',
       },
       oldString: {
         type: 'string',

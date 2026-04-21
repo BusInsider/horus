@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-04-18
+
+### Added - K2.6 Support
+- Added `kimi-k2-6` and `kimi-k2-6-preview` model identifiers
+- Updated Kimi coding endpoint mapping to support K2.6 variants
+- Updated `doctor` validation to recognize K2.6 models
+
+### Fixed - Type Safety & Build
+- Fixed 10 TypeScript errors across 6 files (typecheck now passes cleanly)
+- Fixed `session-archive.ts` gunzip using wrong zlib API (`createGunzip` → `gunzip`)
+- Fixed missing `crypto` import in `session-archive.ts`
+- Fixed `configure.ts` missing `verbosity` property in reset config
+- Fixed `doctor.ts` private property access (`results` → `getResults()`)
+- Fixed `mcp/client.ts` `unknown` → `boolean` cast
+- Removed unused imports/variables in `grep.ts` and `terminal.ts`
+
+### Fixed - Tool Bugs
+- **Bash security**: `rm -rf /tmp/safe_path` no longer falsely triggers "System-wide deletion"
+  - Root deletion patterns now only match actual system dirs (`/bin`, `/etc`, `/usr`, etc.)
+- **Memory recall**: Lowered default `recallThreshold` from 0.7 to 0.5
+  - Fixes issue where legitimate semantic queries returned no results
+- **Search tools**: Relative paths in `search` and `git` tools now resolve against `context.cwd`
+
 ## [0.2.0] - 2026-04-09
 
 ### Added - Phase 2: Advanced Features

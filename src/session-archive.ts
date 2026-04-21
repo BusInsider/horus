@@ -6,6 +6,7 @@ import { homedir } from 'os';
 import { createGzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 import { createReadStream, createWriteStream } from 'fs';
+import { randomUUID } from 'crypto';
 import Database from 'better-sqlite3';
 
 export interface ArchiveOptions {
@@ -147,19 +148,19 @@ export class SessionArchiver {
       let content: string;
       
       if (archivePath.endsWith('.gz')) {
-        const { createGunzip } = await import('zlib');
+        const { gunzip } = await import('zlib');
         const { promisify } = await import('util');
-        const gunzip = promisify(createGunzip);
+        const gunzipAsync = promisify(gunzip);
         
         const buffer = await fs.readFile(archivePath);
-        const decompressed = await gunzip(buffer);
+        const decompressed = await gunzipAsync(buffer);
         content = decompressed.toString('utf-8');
       } else {
         content = await fs.readFile(archivePath, 'utf-8');
       }
 
       const data = JSON.parse(content);
-      const newSessionId = crypto.randomUUID();
+      const newSessionId = randomUUID();
 
       // Restore session
       this.db.prepare(`
@@ -181,7 +182,7 @@ export class SessionArchiver {
 
       for (const msg of data.messages) {
         msgStmt.run(
-          crypto.randomUUID(),
+          randomUUID(),
           newSessionId,
           msg.role,
           msg.content,
@@ -224,5 +225,4 @@ export class SessionArchiver {
   }
 }
 
-// Need to import crypto for restore
-import { randomUUID as crypto } from 'crypto';
+

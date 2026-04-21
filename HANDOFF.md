@@ -19,7 +19,7 @@
 {
   "provider": {
     "apiKey": "sk-kimi-...",
-    "model": "kimi-k2-5",
+    "model": "kimi-k2-5",  // or "kimi-k2-6", "kimi-k2-6-preview"
     "baseUrl": "https://api.kimi.com/coding/v1"
   },
   "workspace": {
@@ -67,7 +67,7 @@ Auto-generated per-session configuration.
 **Lines 62-180**: Streaming chat completion handler
 - **Key fix applied**: Handles `reasoning_content` from Kimi API (not just `content`)
 - **Important**: Uses `User-Agent: KimiCLI/1.0` for api.kimi.com/coding/v1 endpoint
-- **Model mapping**: `kimi-k2-5` → `kimi-for-coding` for Kimi API
+- **Model mapping**: `kimi-k2-5`, `kimi-k2-6`, `kimi-k2-6-preview`, `kimi-latest` → `kimi-for-coding` for Kimi API
 
 ### 2. Chat Loop (`src/agent-enhanced.ts`)
 **Lines 118-185**: New `chat()` method for interactive mode
@@ -502,7 +502,7 @@ horus swarm status
 ## Contact/Context
 
 - This project was built to learn from Claude Code architecture
-- Uses Kimi K2.5 (256k context) via Moonshot API
+- Uses Kimi K2.5 and K2.6 (256k+ context) via Moonshot API
 - Inspired by Nous Research Hermes Agent
 - Started: April 8, 2026
 - Last worked: April 9, 2026

@@ -1,0 +1,4 @@
+name = "Memory Recall Cross-Session"
+timeout = 90
+tags = ["memory", "recall", "semantic_search"]
+description = "Test that the memory system stores and recalls facts across the session"

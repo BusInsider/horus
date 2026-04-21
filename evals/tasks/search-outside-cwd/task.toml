@@ -1,0 +1,4 @@
+name = "Search Outside CWD"
+timeout = 60
+tags = ["search", "path_parameter", "working"]
+description = "Test that grep/search tools work outside the current working directory"

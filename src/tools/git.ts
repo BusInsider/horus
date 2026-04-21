@@ -1,5 +1,6 @@
 // Git tools - Git operations
 import { spawn } from 'child_process';
+import { join, isAbsolute } from 'path';
 import { Tool, ToolContext, ToolResult } from './types.js';
 
 async function runGit(args: string[], cwd: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
@@ -31,12 +32,19 @@ export const gitStatusTool: Tool = {
   description: 'Check git repository status - shows modified, staged, and untracked files',
   parameters: {
     type: 'object',
-    properties: {},
+    properties: {
+      path: {
+        type: 'string',
+        description: 'Path to git repository (defaults to current directory)',
+        default: '.',
+      },
+    },
     required: [],
   },
 
-  async execute(_args: {}, context: ToolContext): Promise<ToolResult> {
-    const result = await runGit(['status', '--short'], context.cwd);
+  async execute(args: { path?: string }, context: ToolContext): Promise<ToolResult> {
+    const targetPath = args.path && args.path !== '.' ? (isAbsolute(args.path) ? args.path : join(context.cwd, args.path)) : context.cwd;
+    const result = await runGit(['status', '--short'], targetPath);
     
     if (result.exitCode !== 0) {
       return {
@@ -63,13 +71,19 @@ export const gitDiffTool: Tool = {
         description: 'Show staged changes instead of unstaged',
         default: false,
       },
+      path: {
+        type: 'string',
+        description: 'Path to git repository (defaults to current directory)',
+        default: '.',
+      },
     },
     required: [],
   },
 
-  async execute(args: { staged?: boolean }, context: ToolContext): Promise<ToolResult> {
+  async execute(args: { staged?: boolean; path?: string }, context: ToolContext): Promise<ToolResult> {
     const gitArgs = args.staged ? ['diff', '--staged'] : ['diff'];
-    const result = await runGit(gitArgs, context.cwd);
+    const targetPath = args.path && args.path !== '.' ? (isAbsolute(args.path) ? args.path : join(context.cwd, args.path)) : context.cwd;
+    const result = await runGit(gitArgs, targetPath);
     
     if (result.exitCode !== 0) {
       return {
@@ -97,12 +111,18 @@ export const gitLogTool: Tool = {
         description: 'Number of commits to show',
         default: 10,
       },
+      path: {
+        type: 'string',
+        description: 'Path to git repository (defaults to current directory)',
+        default: '.',
+      },
     },
     required: [],
   },
 
-  async execute(args: { n?: number }, context: ToolContext): Promise<ToolResult> {
-    const result = await runGit(['log', '--oneline', '-n', String(args.n || 10)], context.cwd);
+  async execute(args: { n?: number; path?: string }, context: ToolContext): Promise<ToolResult> {
+    const targetPath = args.path && args.path !== '.' ? (isAbsolute(args.path) ? args.path : join(context.cwd, args.path)) : context.cwd;
+    const result = await runGit(['log', '--oneline', '-n', String(args.n || 10)], targetPath);
     
     if (result.exitCode !== 0) {
       return {

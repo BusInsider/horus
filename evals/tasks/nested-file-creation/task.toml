@@ -1,0 +1,4 @@
+name = "Nested File Creation"
+timeout = 90
+tags = ["file_creation", "directory_handling", "edit_tool"]
+description = "Agent must create a file inside a non-existent nested directory"

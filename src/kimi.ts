@@ -3,7 +3,7 @@
 export interface KimiConfig {
   apiKey: string;
   baseUrl: string;
-  model: 'kimi-k2-5' | 'kimi-latest' | 'kimi-for-coding';
+  model: 'kimi-k2-5' | 'kimi-k2-6' | 'kimi-k2-6-preview' | 'kimi-latest' | 'kimi-for-coding';
   maxRetries?: number;
   timeoutMs?: number;
 }
@@ -77,19 +77,25 @@ export class KimiClient {
   async *stream(
     messages: Message[],
     tools: ToolDefinition[],
-    options?: { 
-      temperature?: number; 
+    options?: {
+      temperature?: number;
       maxTokens?: number;
       thinking?: { type: 'enabled' | 'disabled' };
       topP?: number;
+      model?: string;
     }
   ): AsyncGenerator<StreamChunk> {
     const url = `${this.config.baseUrl}/chat/completions`;
     
     // Map model names for kimi-for-coding endpoint
-    let modelName: string = this.config.model;
-    if (this.config.baseUrl.includes('api.kimi.com') && modelName === 'kimi-k2-5') {
-      modelName = 'kimi-for-coding';
+    let modelName: string = options?.model || this.config.model;
+    if (this.config.baseUrl.includes('api.kimi.com')) {
+      // The Kimi coding endpoint uses 'kimi-for-coding' as the model identifier
+      // regardless of whether the user selected k2.5, k2.6, or turbo
+      const codingEndpointModels = ['kimi-k2-5', 'kimi-k2-6', 'kimi-k2-6-preview', 'kimi-k2-turbo-preview', 'kimi-latest'];
+      if (codingEndpointModels.includes(modelName)) {
+        modelName = 'kimi-for-coding';
+      }
     }
     
     const body: any = {

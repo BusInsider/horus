@@ -19,10 +19,17 @@ export interface TokenUsage {
   available: number;
 }
 
+export interface TierUsage {
+  tier: number;
+  tokens: number;
+  items: number;
+}
+
 export class TokenManager {
   private budget: TokenBudget;
   private logger: Logger;
   private usage: TokenUsage;
+  private tierUsage: TierUsage[] = [];
 
   constructor(budget?: Partial<TokenBudget>, logger?: Logger) {
     this.budget = {
@@ -45,7 +52,23 @@ export class TokenManager {
       total: 0,
       available: this.budget.maxTokens - this.budget.reserveTokens,
     };
+    this.tierUsage = [];
     return this.usage;
+  }
+
+  updateTierUsage(tierUsage: TierUsage[]): void {
+    this.tierUsage = tierUsage;
+  }
+
+  getTierUsage(): TierUsage[] {
+    return [...this.tierUsage];
+  }
+
+  getTierBreakdown(): string {
+    if (this.tierUsage.length === 0) return '';
+    return this.tierUsage
+      .map(t => `T${t.tier}: ${t.tokens.toLocaleString()}tk (${t.items} items)`)
+      .join(' | ');
   }
 
   // Estimate tokens for text (rough approximation: 4 chars ≈ 1 token)
@@ -193,6 +216,7 @@ export class TokenManager {
       total: this.usage.total,
       available: this.usage.available,
       percentage: (this.getUsagePercentage() * 100).toFixed(1) + '%',
+      tiers: this.getTierBreakdown(),
     });
   }
 }

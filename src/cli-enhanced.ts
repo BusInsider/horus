@@ -47,7 +47,8 @@ import { handleAgentCommand, printAgentHelp } from './agents/index.js';
 import { initLogger } from './utils/logger.js';
 import { ModeType, ModeController } from './mode-controller.js';
 import { TraceViewer } from './utils/tracer.js';
-import { analyzeSession, aggregateStats, compareSessions, formatDuration, formatCost } from './utils/trace-analysis.js';
+import { analyzeSession, aggregateStats, compareSessions, formatDuration, formatCost, type SessionSummary } from './utils/trace-analysis.js';
+import { exportTrace, exportCostSummary, type ExportFormat } from './utils/trace-export.js';
 import { runConfigureWizard, showConfiguration, testApiConnection, resetConfiguration, configureMcp } from './configure.js';
 import { runDoctor } from './doctor.js';
 import chalk from 'chalk';
@@ -838,11 +839,73 @@ program
   .option('--analyze <id>', 'Analyze a trace (summary + stats)')
   .option('--stats', 'Show aggregate statistics across all traces')
   .option('--compare <ids>', 'Compare two traces (comma-separated IDs)')
+  .option('--export <format>', 'Export trace to format: json, csv, markdown')
+  .option('--output <path>', 'Output file for export (default: stdout)')
+  .option('--since <date>', 'Filter traces since date (YYYY-MM-DD)')
+  .option('--until <date>', 'Filter traces until date (YYYY-MM-DD)')
+  .option('--cost-summary', 'Show aggregate cost summary across all traces')
   .action(async (options) => {
     const viewer = new TraceViewer();
 
+    function filterByDate(traces: Array<{ id: string; date: Date; events: number }>) {
+      let filtered = traces;
+      if (options.since) {
+        const since = new Date(options.since);
+        filtered = filtered.filter(t => t.date >= since);
+      }
+      if (options.until) {
+        const until = new Date(options.until);
+        until.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(t => t.date <= until);
+      }
+      return filtered;
+    }
+
+    function writeOutput(content: string) {
+      if (options.output) {
+        writeFileSync(options.output, content, 'utf-8');
+        console.log(chalk.green(`Saved to: ${options.output}`));
+      } else {
+        console.log(content);
+      }
+    }
+
+    if (options.export) {
+      const sessionId = options.view || options.analyze || options.latest;
+      if (!sessionId) {
+        // Try to get latest if no ID specified
+        const traces = viewer.listTraces();
+        if (traces.length === 0) {
+          console.log(chalk.red('No traces found. Specify --view <id> or --analyze <id>.'));
+          return;
+        }
+        const latestId = traces[0].id;
+        const output = exportTrace(latestId, options.export as ExportFormat);
+        writeOutput(output);
+        return;
+      }
+      let id = sessionId;
+      if (sessionId === true) { // --latest flag
+        const traces = viewer.listTraces();
+        if (traces.length === 0) {
+          console.log(chalk.red('No traces found'));
+          return;
+        }
+        id = traces[0].id;
+      }
+      const output = exportTrace(id, options.export as ExportFormat);
+      writeOutput(output);
+      return;
+    }
+
+    if (options.costSummary) {
+      const output = exportCostSummary();
+      writeOutput(output);
+      return;
+    }
+
     if (options.list) {
-      const traces = viewer.listTraces();
+      const traces = filterByDate(viewer.listTraces());
       if (traces.length === 0) {
         console.log(chalk.gray('No traces found in ~/.horus/traces/'));
         return;
@@ -927,8 +990,46 @@ program
     }
 
     if (options.stats) {
-      const stats = aggregateStats();
-      if (!stats) {
+      let stats = aggregateStats();
+      if (options.since || options.until) {
+        const traces = filterByDate(viewer.listTraces());
+        const ids = traces.map(t => t.id);
+        // Re-aggregate from filtered sessions
+        const filteredSummaries = ids.map(id => analyzeSession(id)).filter(Boolean) as SessionSummary[];
+        if (filteredSummaries.length === 0) {
+          console.log(chalk.gray('No traces found in date range'));
+          return;
+        }
+        const totalDurationMs = filteredSummaries.reduce((s, x) => s + x.durationMs, 0);
+        const totalApiCalls = filteredSummaries.reduce((s, x) => s + x.apiCalls, 0);
+        const totalToolCalls = filteredSummaries.reduce((s, x) => s + x.toolCalls, 0);
+        const totalErrors = filteredSummaries.reduce((s, x) => s + x.errors, 0);
+        const totalTokens = filteredSummaries.reduce((s, x) => s + x.totalTokens, 0);
+        const totalEstimatedCost = filteredSummaries.reduce((s, x) => s + x.estimatedCost, 0);
+        const toolMap = new Map<string, number>();
+        for (const s of filteredSummaries) {
+          for (const [name, count] of Object.entries(s.toolDistribution)) {
+            toolMap.set(name, (toolMap.get(name) || 0) + count);
+          }
+        }
+        stats = {
+          totalSessions: filteredSummaries.length,
+          totalDurationMs,
+          totalApiCalls,
+          totalToolCalls,
+          totalErrors,
+          totalTokens,
+          totalEstimatedCost,
+          avgDurationMs: totalDurationMs / filteredSummaries.length,
+          avgApiCalls: totalApiCalls / filteredSummaries.length,
+          avgToolCalls: totalToolCalls / filteredSummaries.length,
+          avgTokens: totalTokens / filteredSummaries.length,
+          errorRate: totalApiCalls > 0 ? totalErrors / totalApiCalls : 0,
+          topTools: Array.from(toolMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+          sessionSummaries: filteredSummaries,
+        };
+      }
+      if (!stats || stats.totalSessions === 0) {
         console.log(chalk.gray('No traces found'));
         return;
       }
@@ -942,8 +1043,8 @@ program
       console.log(`Est. cost:     ${formatCost(stats.totalEstimatedCost)}`);
       console.log();
       console.log(`Avg duration:  ${formatDuration(stats.avgDurationMs)}`);
-      console.log(`Avg API calls: ${stats.avgApiCalls}`);
-      console.log(`Avg tool calls: ${stats.avgToolCalls}`);
+      console.log(`Avg API calls: ${stats.avgApiCalls.toFixed(1)}`);
+      console.log(`Avg tool calls: ${stats.avgToolCalls.toFixed(1)}`);
       console.log(`Avg tokens:    ${stats.avgTokens.toLocaleString()}`);
       console.log(`Error rate:    ${(stats.errorRate * 100).toFixed(1)}%`);
       if (stats.topTools.length > 0) {
@@ -994,12 +1095,17 @@ program
 
     // Default: show help
     console.log(chalk.blue('\n📋 Trace Commands\n'));
-    console.log('  ' + chalk.cyan('horus trace --list') + '              List all traces');
-    console.log('  ' + chalk.cyan('horus trace --view <id>') + '         View specific trace');
-    console.log('  ' + chalk.cyan('horus trace --latest') + '            View most recent trace');
-    console.log('  ' + chalk.cyan('horus trace --analyze <id>') + '      Analyze trace summary');
-    console.log('  ' + chalk.cyan('horus trace --stats') + '             Aggregate statistics');
-    console.log('  ' + chalk.cyan('horus trace --compare id1,id2') + ' Compare two traces');
+    console.log('  ' + chalk.cyan('horus trace --list') + '                    List all traces');
+    console.log('  ' + chalk.cyan('horus trace --list --since 2026-04-01') + '  List traces since date');
+    console.log('  ' + chalk.cyan('horus trace --view <id>') + '               View specific trace');
+    console.log('  ' + chalk.cyan('horus trace --latest') + '                  View most recent trace');
+    console.log('  ' + chalk.cyan('horus trace --analyze <id>') + '            Analyze trace summary');
+    console.log('  ' + chalk.cyan('horus trace --stats') + '                   Aggregate statistics');
+    console.log('  ' + chalk.cyan('horus trace --cost-summary') + '            Aggregate cost report (markdown)');
+    console.log('  ' + chalk.cyan('horus trace --export markdown') + '         Export latest trace to markdown');
+    console.log('  ' + chalk.cyan('horus trace --export json --view <id>') + '  Export trace to JSON');
+    console.log('  ' + chalk.cyan('horus trace --export csv --output report.csv') + ' Export to CSV file');
+    console.log('  ' + chalk.cyan('horus trace --compare id1,id2') + '       Compare two traces');
     console.log();
   });
 

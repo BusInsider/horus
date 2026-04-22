@@ -1,0 +1,4 @@
+name = "Context Window Pressure"
+timeout = 180
+tags = ["search", "context", "large_workspace", "focus"]
+description = "Agent must find and modify specific files in a 50+ file workspace without getting distracted"

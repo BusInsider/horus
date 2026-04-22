@@ -1,0 +1,4 @@
+name = "Long Horizon Refactor"
+timeout = 300
+tags = ["refactoring", "long_horizon", "planning", "multi_step"]
+description = "Refactor a monolithic module into 6 separate files with proper imports and tests"

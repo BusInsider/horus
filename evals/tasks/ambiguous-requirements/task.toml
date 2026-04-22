@@ -1,0 +1,4 @@
+name = "Ambiguous Requirements"
+timeout = 300
+tags = ["reasoning", "ambiguity", "requirements", "judgment"]
+description = "Agent must handle vague instructions by making reasonable assumptions and documenting them"

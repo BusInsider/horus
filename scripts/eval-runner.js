@@ -52,6 +52,10 @@ const FULL_TASKS = [
   'ambiguous-error-recovery',
   'cross-file-type-refactor',
   'deliberate-plan-flaws',
+  'large-file-surgical-edit',
+  'long-horizon-refactor',
+  'ambiguous-requirements',
+  'context-window-pressure',
   // 'nested-conditional-editing'  // Flaky: agent loop/API issues, revisit later
 ];
 

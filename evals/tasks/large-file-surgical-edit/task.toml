@@ -1,0 +1,4 @@
+name = "Large File Surgical Edit"
+timeout = 180
+tags = ["editing", "precision", "large_files", "surgical"]
+description = "Agent must edit a specific function deep inside a 5000+ line file without changing unrelated code"

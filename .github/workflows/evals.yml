@@ -1,0 +1,87 @@
+name: Evals
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'evals/**'
+      - 'package.json'
+      - 'tsconfig.json'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Eval suite to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - quick
+          - full
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test & TypeCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  eval-quick:
+    name: Quick Evals
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Run quick eval suite
+        env:
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+        run: node dist/cli-enhanced.js eval --quick --report evals/report-quick.md
+      - name: Upload quick eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-quick
+          path: evals/report-quick.md
+
+  eval-full:
+    name: Full Evals
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-full-evals')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Run full eval suite
+        env:
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+        run: node dist/cli-enhanced.js eval --full --report evals/report-full.md
+      - name: Upload full eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-full
+          path: evals/report-full.md
